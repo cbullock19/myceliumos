@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,7 +27,24 @@ const passwordSetupSchema = z.object({
 
 type PasswordSetupFormData = z.infer<typeof passwordSetupSchema>
 
-export default function SetupPasswordPage() {
+// Loading fallback component
+function SetupPasswordLoading() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-blue-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <Card className="backdrop-blur-sm bg-white/95 border-0 shadow-2xl shadow-emerald-100/50">
+          <CardContent className="p-8 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading...</p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+// Main password setup component that uses useSearchParams
+function PasswordSetupForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [showTempPassword, setShowTempPassword] = useState(false)
@@ -303,5 +320,14 @@ export default function SetupPasswordPage() {
         </Card>
       </div>
     </div>
+  )
+}
+
+// Main page component with Suspense boundary
+export default function SetupPasswordPage() {
+  return (
+    <Suspense fallback={<SetupPasswordLoading />}>
+      <PasswordSetupForm />
+    </Suspense>
   )
 } 
