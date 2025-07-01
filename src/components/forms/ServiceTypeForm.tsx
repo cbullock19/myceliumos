@@ -282,7 +282,7 @@ export default function ServiceTypeForm({ serviceType, onSave, onCancel }: Servi
   }
 
   // Add new field
-  const addField = (type: typeof FIELD_TYPES[0]['type']) => {
+  const addField = (type: DeliverableField['type']) => {
     const newField: DeliverableField = {
       id: generateFieldId(),
       name: `New ${FIELD_TYPES.find(ft => ft.type === type)?.label || 'Field'}`,
@@ -838,7 +838,7 @@ export default function ServiceTypeForm({ serviceType, onSave, onCancel }: Servi
                   </label>
                 </div>
 
-                {(['TEXT', 'TEXTAREA', 'URL', 'NUMBER'] as const).includes(editingField.type) ? (
+                {['TEXT', 'TEXTAREA', 'URL', 'NUMBER'].includes(editingField.type) ? (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Default Value (optional)
