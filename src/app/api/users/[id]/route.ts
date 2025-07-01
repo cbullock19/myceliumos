@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient, createSupabaseAdminClient } from '@/lib/supabase'
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { prisma } from '@/lib/prisma'
 
 async function authenticateRequest(request: NextRequest) {
   const supabase = await createSupabaseServerClient()
@@ -274,7 +272,5 @@ export async function DELETE(
       error: 'Unknown error occurred during user deletion',
       resolution: 'Check server logs for details'
     }, { status: 500 })
-  } finally {
-    await prisma.$disconnect()
   }
 } 
