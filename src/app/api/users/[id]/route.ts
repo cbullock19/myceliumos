@@ -123,49 +123,10 @@ export async function DELETE(
 
     console.log('📊 Deletion impact analysis:', impactAnalysis)
 
-    // Begin deletion process
-    console.log('🔄 Starting dual deletion process...')
+    // Begin deletion process in transaction
+    console.log('🔄 Starting deletion process with transaction...')
 
-    // STEP 1: Handle cascading effects - Reassign deliverables to admin
-    if (targetUser.assignedDeliverables.length > 0) {
-      console.log(`📋 Reassigning ${targetUser.assignedDeliverables.length} active deliverables to admin...`)
-      
-      await prisma.deliverable.updateMany({
-        where: {
-          assignedUserId: userId,
-          status: { in: ['PENDING', 'IN_PROGRESS'] }
-        },
-        data: {
-          assignedUserId: currentDbUser.id // Reassign to current admin
-        }
-      })
-
-      // Add activity log entries for reassignment
-      for (const deliverable of targetUser.assignedDeliverables) {
-        await prisma.comment.create({
-          data: {
-            deliverableId: deliverable.id,
-            userId: currentDbUser.id,
-            content: `Deliverable automatically reassigned from ${targetUser.name} (deleted user) to ${currentDbUser.name}`,
-            type: 'STATUS_UPDATE',
-            isInternal: true
-          }
-        })
-      }
-    }
-
-    // STEP 2: Handle client assignments - Delete client assignment records
-    if (targetUser.assignedClients.length > 0) {
-      console.log(`👥 Removing user from ${targetUser.assignedClients.length} client assignments...`)
-      
-      await prisma.clientAssignment.deleteMany({
-        where: {
-          userId: userId
-        }
-      })
-    }
-
-    // STEP 3: Delete from Supabase Auth (if user has Auth account)
+    // STEP 1: Handle Supabase Auth deletion first (outside transaction)
     console.log('🔐 Attempting to delete from Supabase Auth...')
     const supabaseAdmin = createSupabaseAdminClient()
     
@@ -188,35 +149,80 @@ export async function DELETE(
       console.log('   User ID:', userId, 'is not UUID format, likely created before current auth system')
     }
 
-    // STEP 4: Delete from database
-    console.log('📝 Deleting from database...')
-    
-    const deletedUser = await prisma.user.delete({
-      where: { id: userId }
-    })
+    // STEP 2: Database operations in single transaction
+    const deletedUser = await prisma.$transaction(async (tx) => {
+      // Reassign deliverables to admin
+      if (targetUser.assignedDeliverables.length > 0) {
+        console.log(`📋 Reassigning ${targetUser.assignedDeliverables.length} active deliverables to admin...`)
+        
+        await tx.deliverable.updateMany({
+          where: {
+            assignedUserId: userId,
+            status: { in: ['PENDING', 'IN_PROGRESS'] }
+          },
+          data: {
+            assignedUserId: currentDbUser.id // Reassign to current admin
+          }
+        })
 
-    console.log('✅ Database user record deleted successfully')
-
-    // STEP 5: Log the deletion activity
-    await prisma.activityLog.create({
-      data: {
-        organizationId: currentDbUser.organizationId,
-        userId: currentDbUser.id,
-        action: 'deleted',
-        resourceType: 'user',
-        resourceId: userId,
-        resourceName: `${targetUser.name} (${targetUser.email})`,
-        metadata: {
-          deletedUserRole: targetUser.role,
-          deletedUserStatus: targetUser.status,
-          reassignedDeliverables: impactAnalysis.activeDeliverablesCount,
-          reassignedClients: impactAnalysis.assignedClientsCount,
-          deletedBy: currentDbUser.name,
-          deletionReason: 'admin_deletion',
-          impactAnalysis
+        // Batch create comments for reassignment (much more efficient)
+        if (targetUser.assignedDeliverables.length > 0) {
+          const commentsData = targetUser.assignedDeliverables.map(deliverable => ({
+            deliverableId: deliverable.id,
+            userId: currentDbUser.id,
+            content: `Deliverable automatically reassigned from ${targetUser.name} (deleted user) to ${currentDbUser.name}`,
+            type: 'STATUS_UPDATE' as const,
+            isInternal: true
+          }))
+          
+          await tx.comment.createMany({
+            data: commentsData
+          })
         }
       }
+
+      // Delete client assignments
+      if (targetUser.assignedClients.length > 0) {
+        console.log(`👥 Removing user from ${targetUser.assignedClients.length} client assignments...`)
+        
+        await tx.clientAssignment.deleteMany({
+          where: {
+            userId: userId
+          }
+        })
+      }
+
+      // Delete the user record
+      console.log('📝 Deleting user from database...')
+      const deletedUser = await tx.user.delete({
+        where: { id: userId }
+      })
+
+      // Log the deletion activity
+      await tx.activityLog.create({
+        data: {
+          organizationId: currentDbUser.organizationId,
+          userId: currentDbUser.id,
+          action: 'deleted',
+          resourceType: 'user',
+          resourceId: userId,
+          resourceName: `${targetUser.name} (${targetUser.email})`,
+          metadata: {
+            deletedUserRole: targetUser.role,
+            deletedUserStatus: targetUser.status,
+            reassignedDeliverables: impactAnalysis.activeDeliverablesCount,
+            reassignedClients: impactAnalysis.assignedClientsCount,
+            deletedBy: currentDbUser.name,
+            deletionReason: 'admin_deletion',
+            impactAnalysis
+          }
+        }
+      })
+
+      return deletedUser
     })
+
+    console.log('✅ Database operations completed successfully')
 
     console.log('🎉 USER DELETION COMPLETED SUCCESSFULLY')
     console.log(`  ${isUUID ? '✅ Auth account deleted' : 'ℹ️  Auth account skipped (legacy user)'}: ${userId}`)
