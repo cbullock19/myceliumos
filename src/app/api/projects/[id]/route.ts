@@ -76,8 +76,9 @@ async function authenticateRequest(request: NextRequest) {
 }
 
 // GET /api/projects/[id] - Fetch project details
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
-  console.log(`📋 GET /api/projects/${params.id} - Fetching project details`)
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  console.log(`📋 GET /api/projects/${id} - Fetching project details`)
   
   try {
     const { user, organization } = await authenticateRequest(request)
@@ -85,7 +86,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     // Fetch project with related data
     const project = await prisma.project.findFirst({
       where: {
-        id: params.id,
+        id: id,
         organizationId: organization.id
       },
       include: {
@@ -155,7 +156,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     })
     
   } catch (error: any) {
-    console.error(`❌ GET /api/projects/${params.id} error:`, error)
+    console.error(`❌ GET /api/projects/${id} error:`, error)
     
     if (error.message.includes('Authorization') || error.message.includes('token') || error.message.includes('User not found')) {
       return NextResponse.json(
@@ -172,8 +173,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 // PUT /api/projects/[id] - Update project
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
-  console.log(`📋 PUT /api/projects/${params.id} - Updating project`)
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  console.log(`📋 PUT /api/projects/${id} - Updating project`)
   
   try {
     const { user, organization } = await authenticateRequest(request)
@@ -184,7 +186,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     // Verify project exists and belongs to organization
     const existingProject = await prisma.project.findFirst({
       where: {
-        id: params.id,
+        id: id,
         organizationId: organization.id
       }
     })
@@ -215,7 +217,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     
     // Update project
     const project = await prisma.project.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         name: body.name || existingProject.name,
         description: body.description,
@@ -252,7 +254,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     })
     
   } catch (error: any) {
-    console.error(`❌ PUT /api/projects/${params.id} error:`, error)
+    console.error(`❌ PUT /api/projects/${id} error:`, error)
     
     if (error.message.includes('Authorization') || error.message.includes('token') || error.message.includes('User not found')) {
       return NextResponse.json(
@@ -269,8 +271,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // DELETE /api/projects/[id] - Delete project
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
-  console.log(`📋 DELETE /api/projects/${params.id} - Deleting project`)
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  console.log(`📋 DELETE /api/projects/${id} - Deleting project`)
   
   try {
     const { user, organization } = await authenticateRequest(request)
@@ -278,7 +281,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     // Verify project exists and belongs to organization
     const existingProject = await prisma.project.findFirst({
       where: {
-        id: params.id,
+        id: id,
         organizationId: organization.id
       },
       include: {
@@ -307,7 +310,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     
     // Delete project
     await prisma.project.delete({
-      where: { id: params.id }
+      where: { id: id }
     })
     
     console.log(`✅ Deleted project: ${existingProject.name}`)
@@ -318,7 +321,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     })
     
   } catch (error: any) {
-    console.error(`❌ DELETE /api/projects/${params.id} error:`, error)
+    console.error(`❌ DELETE /api/projects/${id} error:`, error)
     
     if (error.message.includes('Authorization') || error.message.includes('token') || error.message.includes('User not found')) {
       return NextResponse.json(
