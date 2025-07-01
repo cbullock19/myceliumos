@@ -1,0 +1,845 @@
+// Mycelium OS - Complete Database Schema
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ====== CORE TENANT ARCHITECTURE ======
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique // For subdomain routing: client.agencyname.com
+  description String?
+  website     String?
+  industry    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Branding & Customization
+  branding    OrganizationBranding?
+  
+  // Configuration
+  settings    OrganizationSettings?
+  
+  // Relationships
+  users           User[]
+  clients         Client[]
+  deliverables    Deliverable[]
+  projects        Project[]
+  serviceTypes    ServiceType[]
+  activityLogs    ActivityLog[]
+  notifications   Notification[]
+  integrations    Integration[]
+  
+  // Billing (Future)
+  subscription    Subscription?
+  
+  @@map("organizations")
+}
+
+model OrganizationBranding {
+  id             String @id @default(cuid())
+  organizationId String @unique
+  
+  // Visual Identity
+  primaryColor   String @default("#228B22") // Forest green default
+  secondaryColor String?
+  logoUrl        String?
+  faviconUrl     String?
+  
+  // Email Branding
+  emailHeaderHtml String?
+  emailFooterHtml String?
+  emailSignature  String?
+  
+  // Client Portal Branding
+  portalWelcomeMessage String?
+  portalSupportEmail   String?
+  customDomain         String? // client.agencyname.com
+  customCSS           String? // Custom portal styling
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  @@map("organization_branding")
+}
+
+model OrganizationSettings {
+  id             String @id @default(cuid())
+  organizationId String @unique
+  
+  // General Settings
+  timezone       String @default("America/New_York")
+  dateFormat     String @default("MM/DD/YYYY")
+  weekStartsOn   Int    @default(1) // 1 = Monday, 0 = Sunday
+  
+  // Notification Settings
+  enableEmailNotifications  Boolean @default(true)
+  enableSlackNotifications  Boolean @default(false)
+  notificationFrequency     String  @default("daily") // immediate, daily, weekly
+  
+  // Deliverable Settings
+  autoAssignToAdmin         Boolean @default(true)
+  defaultDeliverableDuration Int    @default(7) // days
+  enableRecurringGeneration Boolean @default(true)
+  
+  // Security Settings
+  requirePasswordChange     Boolean @default(true)
+  sessionTimeoutHours      Int     @default(24)
+  maxLoginAttempts         Int     @default(5)
+  
+  // Feature Flags
+  enableClientPortal       Boolean @default(true)
+  enableTimeTracking       Boolean @default(false)
+  enableFileVersioning     Boolean @default(false)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  @@map("organization_settings")
+}
+
+// ====== USER MANAGEMENT ======
+
+model User {
+  id             String     @id @default(cuid())
+  organizationId String
+  email          String     @unique
+  name           String
+  role           UserRole
+  status         UserStatus @default(PENDING)
+  
+  // Authentication
+  hashedPassword String?
+  emailVerified  Boolean    @default(false)
+  lastLoginAt    DateTime?
+  loginAttempts  Int        @default(0)
+  lockedAt       DateTime?
+  
+  // Profile
+  avatarUrl      String?
+  phone          String?
+  title          String?
+  bio            String?
+  
+  // Permissions (for CUSTOM role)
+  permissions    Json?
+  
+  // Invitation System
+  invitedBy      String?
+  invitedAt      DateTime?
+  temporaryPassword String? // Encrypted, expires after first login
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relationships
+  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inviter            User?        @relation("UserInvitations", fields: [invitedBy], references: [id])
+  invitedUsers       User[]       @relation("UserInvitations")
+  
+  // Work Assignments
+  assignedClients     ClientAssignment[]
+  assignedDeliverables Deliverable[] @relation("DeliverableAssignee")
+  completedDeliverables Deliverable[] @relation("DeliverableCompleter")
+  createdDeliverables Deliverable[] @relation("DeliverableCreator")
+  
+  // Activity Tracking
+  activityLogs       ActivityLog[]
+  sentNotifications  Notification[] @relation("NotificationSender")
+  receivedNotifications NotificationRecipient[]
+  
+  // Comments & Communication
+  comments           Comment[]
+  timeEntries        TimeEntry[]
+  
+  @@index([organizationId])
+  @@index([email])
+  @@index([role])
+  @@index([status])
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  VIDEO_EDITOR
+  SEO_STRATEGIST
+  WEBSITE_DESIGNER
+  FILMER
+  CUSTOM
+  CLIENT // For client portal users
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+  SUSPENDED
+}
+
+// ====== SERVICE TYPE SYSTEM ======
+
+model ServiceType {
+  id             String @id @default(cuid())
+  organizationId String
+  name           String // "Social Media", "SEO", "Website Design"
+  slug           String // "social", "seo", "website"
+  description    String?
+  isActive       Boolean @default(true)
+  sortOrder      Int     @default(0)
+  
+  // Visual Customization
+  color          String  @default("#10B981") // Default emerald-500 color
+  
+  // Workflow Configuration
+  workflowType   WorkflowType
+  defaultDuration Int        @default(7) // Default deliverable duration in days
+  
+  // Billing Configuration (Future)
+  defaultRate    Decimal?   @db.Decimal(10, 2)
+  billingCycle   String?    // "monthly", "project", "hourly"
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relationships
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deliverableFields  DeliverableField[]
+  clientAssignments  ClientAssignment[]
+  deliverables       Deliverable[]
+  
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+  @@map("service_types")
+}
+
+enum WorkflowType {
+  RECURRING  // Monthly recurring deliverables (social media)
+  PROJECT    // Fixed timeline projects (SEO campaigns)
+  MILESTONE  // Phase-based projects (website builds)
+  ONEOFF     // Single deliverables
+}
+
+model DeliverableField {
+  id            String @id @default(cuid())
+  serviceTypeId String
+  name          String // "Due Date", "Dropbox Link", "Client Approval"
+  slug          String // "due_date", "dropbox_link", "client_approval"
+  type          FieldType
+  isRequired    Boolean @default(false)
+  sortOrder     Int     @default(0)
+  
+  // Field Configuration
+  defaultValue  String?
+  placeholder   String?
+  helpText      String?
+  
+  // Validation Rules
+  minLength     Int?
+  maxLength     Int?
+  minValue      Decimal? @db.Decimal(10, 2)
+  maxValue      Decimal? @db.Decimal(10, 2)
+  pattern       String? // Regex pattern for validation
+  
+  // Dropdown Options
+  options       Json? // Array of options for SELECT/RADIO fields
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  serviceType ServiceType @relation(fields: [serviceTypeId], references: [id], onDelete: Cascade)
+  
+  @@unique([serviceTypeId, slug])
+  @@index([serviceTypeId])
+  @@map("deliverable_fields")
+}
+
+enum FieldType {
+  TEXT
+  TEXTAREA
+  NUMBER
+  DECIMAL
+  DATE
+  DATETIME
+  TIME
+  EMAIL
+  URL
+  PHONE
+  SELECT
+  MULTISELECT
+  RADIO
+  CHECKBOX
+  FILE
+  USER_SELECT
+  CLIENT_SELECT
+}
+
+// ====== CLIENT MANAGEMENT ======
+
+model Client {
+  id             String @id @default(cuid())
+  organizationId String
+  name           String
+  slug           String // URL-friendly version of name
+  
+  // Contact Information
+  contactEmail   String?
+  contactPhone   String?
+  contactPerson  String?
+  
+  // Company Details
+  companyName    String?
+  website        String?
+  industry       String?
+  address        Json? // Flexible address structure
+  
+  // Client Settings
+  status         ClientStatus @default(ACTIVE)
+  isPaused       Boolean      @default(false)
+  pausedAt       DateTime?
+  pausedReason   String?
+  
+  // Communication Preferences
+  notificationEmail String?
+  preferredContactMethod String? // "email", "phone", "slack"
+  
+  // File Management
+  dropboxFolderUrl String?
+  driveId         String? // Google Drive folder ID
+  
+  // Custom Fields (Organization-specific)
+  customFields   Json?
+  
+  // Internal Notes
+  notes          String?
+  tags           String[] @default([])
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relationships
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignments       ClientAssignment[]
+  deliverables      Deliverable[]
+  projects          Project[]
+  
+  // Client Portal Access
+  clientUsers       ClientUser[]
+  
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+  @@index([status])
+  @@map("clients")
+}
+
+enum ClientStatus {
+  ACTIVE
+  INACTIVE
+  PAUSED
+  ARCHIVED
+  TERMINATED
+}
+
+model ClientAssignment {
+  id           String @id @default(cuid())
+  clientId     String
+  userId       String
+  serviceTypeId String
+  role         AssignmentRole @default(PRIMARY)
+  isActive     Boolean        @default(true)
+  
+  // Service Assignment Status
+  status       ServiceAssignmentStatus @default(ACTIVE)
+  statusUpdatedAt DateTime @default(now())
+  statusUpdatedBy String?
+  
+  assignedAt   DateTime @default(now())
+  assignedBy   String? // User ID who made the assignment
+  
+  client       Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  serviceType  ServiceType @relation(fields: [serviceTypeId], references: [id], onDelete: Cascade)
+  
+  @@unique([clientId, userId, serviceTypeId])
+  @@index([clientId])
+  @@index([userId])
+  @@index([status])
+  @@map("client_assignments")
+}
+
+enum ServiceAssignmentStatus {
+  ACTIVE      // Service is currently being provided
+  COMPLETED   // Service has been completed/delivered
+  PAUSED      // Service is temporarily paused
+  CANCELLED   // Service has been cancelled
+}
+
+enum AssignmentRole {
+  PRIMARY   // Main contact, gets notifications
+  SECONDARY // Backup, can view and edit
+  VIEWER    // Read-only access
+}
+
+// ====== CLIENT PORTAL USERS ======
+
+model ClientUser {
+  id       String @id @default(cuid())
+  clientId String
+  email    String @unique
+  name     String
+  role     ClientUserRole @default(VIEWER)
+  
+  // Authentication
+  hashedPassword String?
+  emailVerified  Boolean   @default(false)
+  lastLoginAt    DateTime?
+  isActive       Boolean   @default(true)
+  
+  // Profile
+  title    String?
+  phone    String?
+  
+  // Permissions
+  canApprove      Boolean @default(false)
+  canDownload     Boolean @default(true)
+  canComment      Boolean @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  @@index([clientId])
+  @@map("client_users")
+}
+
+enum ClientUserRole {
+  PRIMARY // Main contact, full permissions
+  VIEWER  // Read-only access
+  ADMIN   // Can manage other client users
+}
+
+// ====== PROJECT & DELIVERABLE SYSTEM ======
+
+model Project {
+  id             String @id @default(cuid())
+  organizationId String
+  clientId       String
+  name           String
+  description    String?
+  
+  // Project Details
+  status         ProjectStatus @default(PLANNING)
+  priority       Priority      @default(MEDIUM)
+  
+  // Timeline
+  startDate      DateTime?
+  endDate        DateTime?
+  estimatedHours Decimal? @db.Decimal(8, 2)
+  
+  // Budget (Future)
+  budgetAmount   Decimal? @db.Decimal(10, 2)
+  currency       String?  @default("USD")
+  
+  // Project Manager
+  managerId      String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client         Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  deliverables   Deliverable[]
+  
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([status])
+  @@map("projects")
+}
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+model Deliverable {
+  id             String @id @default(cuid())
+  organizationId String
+  clientId       String
+  projectId      String?
+  serviceTypeId  String
+  
+  // Basic Information
+  title          String
+  description    String?
+  status         DeliverableStatus @default(PENDING)
+  priority       Priority          @default(MEDIUM)
+  
+  // Assignment
+  assignedUserId String?
+  createdById    String
+  
+  // Timeline
+  dueDate        DateTime?
+  startDate      DateTime?
+  estimatedHours Decimal? @db.Decimal(6, 2)
+  actualHours    Decimal? @db.Decimal(6, 2)
+  
+  // Completion Tracking
+  completedAt    DateTime?
+  completedById  String?
+  approvedAt     DateTime?
+  approvedById   String?
+  
+  // Custom Field Values (Dynamic based on service type)
+  customFields   Json?
+  
+  // File Attachments
+  attachments    Json? // Array of file metadata
+  
+  // Recurring Deliverable Settings
+  isRecurring    Boolean @default(false)
+  recurrenceRule String? // Cron-like pattern
+  parentId       String? // Original deliverable for recurring copies
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relationships
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client         Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  project        Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  serviceType    ServiceType  @relation(fields: [serviceTypeId], references: [id], onDelete: Cascade)
+  
+  assignedUser   User?        @relation("DeliverableAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  createdBy      User         @relation("DeliverableCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  completedBy    User?        @relation("DeliverableCompleter", fields: [completedById], references: [id], onDelete: SetNull)
+  
+  // Child Relationships
+  comments       Comment[]
+  timeEntries    TimeEntry[]
+  parent         Deliverable? @relation("RecurringDeliverables", fields: [parentId], references: [id])
+  children       Deliverable[] @relation("RecurringDeliverables")
+  
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([assignedUserId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("deliverables")
+}
+
+enum DeliverableStatus {
+  PENDING
+  IN_PROGRESS
+  NEEDS_REVIEW
+  NEEDS_APPROVAL
+  APPROVED
+  COMPLETED
+  OVERDUE
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// ====== COMMUNICATION SYSTEM ======
+
+model Comment {
+  id             String @id @default(cuid())
+  deliverableId  String
+  userId         String
+  content        String
+  
+  // Comment Type
+  type           CommentType @default(GENERAL)
+  isInternal     Boolean     @default(false) // Hidden from client portal
+  
+  // Rich Content
+  attachments    Json? // File attachments
+  mentions       String[] @default([]) // User IDs mentioned
+  
+  // Threading
+  parentId       String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  deliverable    Deliverable @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent         Comment?    @relation("CommentReplies", fields: [parentId], references: [id])
+  replies        Comment[]   @relation("CommentReplies")
+  
+  @@index([deliverableId])
+  @@index([userId])
+  @@map("comments")
+}
+
+enum CommentType {
+  GENERAL
+  FEEDBACK
+  APPROVAL_REQUEST
+  REVISION_REQUEST
+  STATUS_UPDATE
+}
+
+// ====== TIME TRACKING ======
+
+model TimeEntry {
+  id             String @id @default(cuid())
+  userId         String
+  deliverableId  String
+  
+  // Time Details
+  description    String?
+  startTime      DateTime
+  endTime        DateTime?
+  duration       Int? // Minutes
+  
+  // Billing (Future)
+  hourlyRate     Decimal? @db.Decimal(8, 2)
+  billableAmount Decimal? @db.Decimal(10, 2)
+  isBillable     Boolean  @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliverable  Deliverable @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([deliverableId])
+  @@index([startTime])
+  @@map("time_entries")
+}
+
+// ====== NOTIFICATION SYSTEM ======
+
+model Notification {
+  id             String @id @default(cuid())
+  organizationId String
+  type           NotificationType
+  title          String
+  message        String
+  
+  // Targeting
+  senderId       String?
+  
+  // Delivery Channels
+  channels       String[] @default([]) // ["email", "slack", "push"]
+  
+  // Scheduling
+  scheduledFor   DateTime?
+  sentAt         DateTime?
+  
+  // Context Data
+  relatedId      String? // ID of related resource (deliverable, client, etc.)
+  relatedType    String? // Type of related resource
+  metadata       Json?
+  
+  // Delivery Status
+  status         NotificationStatus @default(PENDING)
+  failureReason  String?
+  retryCount     Int                @default(0)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sender       User?        @relation("NotificationSender", fields: [senderId], references: [id], onDelete: SetNull)
+  recipients   NotificationRecipient[]
+  
+  @@index([organizationId])
+  @@index([type])
+  @@index([status])
+  @@index([scheduledFor])
+  @@map("notifications")
+}
+
+model NotificationRecipient {
+  id             String @id @default(cuid())
+  notificationId String
+  userId         String
+  
+  // Delivery Status
+  deliveredAt    DateTime?
+  readAt         DateTime?
+  channel        String // "email", "slack", "push"
+  
+  // Email Specific
+  emailAddress   String?
+  emailStatus    String? // "sent", "delivered", "bounced", "opened"
+  
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([notificationId, userId, channel])
+  @@index([userId])
+  @@map("notification_recipients")
+}
+
+enum NotificationType {
+  DELIVERABLE_ASSIGNED
+  DELIVERABLE_DUE_SOON
+  DELIVERABLE_OVERDUE
+  DELIVERABLE_COMPLETED
+  DELIVERABLE_APPROVED
+  DELIVERABLE_NEEDS_REVIEW
+  CLIENT_ADDED
+  CLIENT_UPDATED
+  USER_INVITED
+  USER_ACTIVATED
+  PROJECT_CREATED
+  PROJECT_COMPLETED
+  COMMENT_ADDED
+  MENTION_RECEIVED
+  INTEGRATION_ERROR
+  SYSTEM_MAINTENANCE
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+// ====== INTEGRATION SYSTEM ======
+
+model Integration {
+  id             String @id @default(cuid())
+  organizationId String
+  type           IntegrationType
+  name           String
+  
+  // Connection Status
+  isEnabled      Boolean @default(false)
+  isConnected    Boolean @default(false)
+  lastSyncAt     DateTime?
+  
+  // Configuration
+  config         Json // Encrypted credentials and settings
+  webhookUrl     String? // For receiving updates
+  
+  // Error Handling
+  errorCount     Int     @default(0)
+  lastError      String?
+  lastErrorAt    DateTime?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  @@unique([organizationId, type])
+  @@index([organizationId])
+  @@map("integrations")
+}
+
+enum IntegrationType {
+  DROPBOX
+  GOOGLE_DRIVE
+  SLACK
+  MICROSOFT_TEAMS
+  ZAPIER
+  WEBHOOKS
+  EMAIL_SMTP
+  CALENDAR
+  STRIPE // Future billing
+}
+
+// ====== ACTIVITY LOGGING ======
+
+model ActivityLog {
+  id             String @id @default(cuid())
+  organizationId String
+  userId         String?
+  
+  // Action Details
+  action         String // "created", "updated", "deleted", "completed"
+  resourceType   String // "client", "deliverable", "user", "project"
+  resourceId     String
+  resourceName   String? // Human-readable name
+  
+  // Change Details
+  oldValues      Json?
+  newValues      Json?
+  changedFields  String[] @default([])
+  
+  // Context
+  ipAddress      String?
+  userAgent      String?
+  sessionId      String?
+  
+  // Metadata
+  metadata       Json?
+  
+  timestamp DateTime @default(now())
+  
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  @@index([organizationId])
+  @@index([userId])
+  @@index([resourceType, resourceId])
+  @@index([timestamp])
+  @@map("activity_logs")
+}
+
+// ====== FUTURE: BILLING SYSTEM ======
+
+model Subscription {
+  id             String @id @default(cuid())
+  organizationId String @unique
+  
+  // Plan Details
+  planName       String
+  planPrice      Decimal @db.Decimal(8, 2)
+  currency       String  @default("USD")
+  billingCycle   String  @default("monthly") // "monthly", "yearly"
+  
+  // Status
+  status         SubscriptionStatus @default(ACTIVE)
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  
+  // Stripe Integration
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  
+  // Usage Limits
+  maxUsers       Int?
+  maxClients     Int?
+  maxProjects    Int?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  @@map("subscriptions")
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  UNPAID
+  TRIALING
+}

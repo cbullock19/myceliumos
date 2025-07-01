@@ -1,0 +1,54 @@
+MYCELIUM OS - PROPRIETARY SOFTWARE LICENSE
+
+Copyright (c) 2024 Mycelium OS. All rights reserved.
+
+NOTICE: This software and its source code are proprietary and confidential.
+
+RESTRICTIONS:
+1. The source code in this repository is made available for reference, 
+   educational, and evaluation purposes only.
+
+2. You may NOT:
+   - Use this software for any commercial purposes
+   - Redistribute, sublicense, or sell this software
+   - Create derivative works based on this software
+   - Use this software to create competing products or services
+   - Remove or modify this license notice
+
+3. You may:
+   - View and study the source code for educational purposes
+   - Fork this repository for personal reference (not for redistribution)
+   - Submit issues or suggestions (though acceptance is at our discretion)
+
+INTELLECTUAL PROPERTY:
+All rights, title, and interest in and to this software, including all 
+intellectual property rights, remain exclusively with Mycelium OS and its 
+licensors. This includes, but is not limited to:
+- Source code, algorithms, and architecture
+- User interface designs and user experience
+- Database schemas and data structures
+- Documentation and technical specifications
+- Trademarks, service marks, and trade names
+
+DISCLAIMER:
+This software is provided "AS IS" without warranty of any kind, express or 
+implied, including but not limited to the warranties of merchantability, 
+fitness for a particular purpose, and non-infringement. In no event shall 
+the authors or copyright holders be liable for any claim, damages, or other 
+liability, whether in an action of contract, tort, or otherwise, arising 
+from, out of, or in connection with the software or the use or other 
+dealings in the software.
+
+CONTACT:
+For licensing inquiries, partnership opportunities, or questions about 
+permitted uses, please contact: legal@myceliumos.com
+
+By accessing or using this software, you acknowledge that you have read, 
+understood, and agree to be bound by the terms of this license.
+
+THIRD-PARTY COMPONENTS:
+This software may include third-party components that are subject to 
+separate license terms. See the package.json file and individual component 
+documentation for details.
+
+Last updated: December 2024 
