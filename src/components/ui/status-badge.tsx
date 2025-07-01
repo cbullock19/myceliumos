@@ -1,7 +1,7 @@
 import React from 'react'
 import { Badge } from '@/components/ui/badge'
 
-export type ClientStatus = 'ACTIVE' | 'INACTIVE' | 'PAUSED' | 'ARCHIVED'
+export type ClientStatus = 'ACTIVE' | 'INACTIVE' | 'PAUSED' | 'ARCHIVED' | 'TERMINATED'
 export type ServiceStatus = 'ACTIVE' | 'COMPLETED' | 'PAUSED' | 'CANCELLED'
 export type DeliverableStatus = 'PENDING' | 'IN_PROGRESS' | 'NEEDS_REVIEW' | 'COMPLETED' | 'OVERDUE'
 
@@ -50,6 +50,8 @@ const getStatusColor = (status: ClientStatus | ServiceStatus | DeliverableStatus
         return 'bg-yellow-100 text-yellow-800 border-yellow-200'
       case 'ARCHIVED':
         return 'bg-red-100 text-red-800 border-red-200'
+      case 'TERMINATED':
+        return 'bg-red-200 text-red-900 border-red-300'
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200'
     }
@@ -66,6 +68,8 @@ const getStatusText = (status: ClientStatus | ServiceStatus | DeliverableStatus)
       return 'Paused'
     case 'ARCHIVED':
       return 'Archived'
+    case 'TERMINATED':
+      return 'Terminated'
     case 'COMPLETED':
       return 'Completed'
     case 'CANCELLED':
