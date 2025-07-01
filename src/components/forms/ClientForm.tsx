@@ -18,7 +18,7 @@ const clientSchema = z.object({
   contactEmail: z.string().email("Valid email is required"),
   contactPhone: z.string().optional(),
   notes: z.string().optional(),
-  status: z.enum(['ACTIVE', 'INACTIVE', 'PAUSED', 'ARCHIVED']).optional(),
+  status: z.enum(['ACTIVE', 'INACTIVE', 'PAUSED', 'ARCHIVED', 'TERMINATED']).optional(),
   serviceTypeIds: z.array(z.string()).min(1, "At least one service type is required"),
 })
 
@@ -231,6 +231,7 @@ export function ClientEditForm({ client, onSubmit, isLoading = false }: ClientEd
                   <option value="INACTIVE">Inactive</option>
                   <option value="PAUSED">Paused</option>
                   <option value="ARCHIVED">Archived</option>
+                  <option value="TERMINATED">Terminated</option>
                 </select>
                 {errors.status && (
                   <p className="text-sm text-red-600">{errors.status.message}</p>
@@ -462,6 +463,7 @@ export default function ClientForm({
                 <option value="INACTIVE">Inactive</option>
                 <option value="PAUSED">Paused</option>
                 <option value="ARCHIVED">Archived</option>
+                <option value="TERMINATED">Terminated</option>
               </select>
               {errors.status && (
                 <p className="text-sm text-red-600">{errors.status.message}</p>
