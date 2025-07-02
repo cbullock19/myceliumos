@@ -1,53 +1,75 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma, validatePrismaConnection, recoverPrismaConnection } from '@/lib/prisma'
-import { createSupabaseServerClient } from '@/lib/supabase'
-import { createApiResponse, createApiError } from '@/lib/utils'
+import { prisma } from '@/lib/prisma'
+import { createClient } from '@supabase/supabase-js'
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
-// Authentication helper using centralized Supabase helper
+// Authentication helper
 async function authenticateRequest(request: NextRequest) {
-  const supabase = await createSupabaseServerClient()
-  const { data: { user }, error } = await supabase.auth.getUser()
+  const authHeader = request.headers.get('Authorization')
   
-  if (error || !user) {
-    console.error('❌ Authentication failed:', error?.message)
-    throw new Error('Authentication required')
+  if (!authHeader) {
+    console.error('❌ No Authorization header found')
+    throw new Error('Missing Authorization header')
   }
-
-  console.log('✅ Supabase user authenticated:', {
-    id: user.id,
-    email: user.email
-  })
   
-  // Get user's organization from database
-  console.log('🔍 Looking up user in database...')
-  const dbUser = await prisma.user.findUnique({
-    where: { id: user.id },
-    include: {
-      organization: true
+  if (!authHeader.startsWith('Bearer ')) {
+    console.error('❌ Invalid Authorization header format')
+    throw new Error('Invalid Authorization header format')
+  }
+  
+  const token = authHeader.substring(7)
+  
+  try {
+    console.log('🔐 Verifying token with Supabase...')
+    const { data: { user }, error } = await supabase.auth.getUser(token)
+    
+    if (error || !user) {
+      console.error('❌ Invalid token:', error?.message)
+      throw new Error('Invalid or expired token')
     }
-  })
-  
-  if (!dbUser) {
-    console.error('❌ User not found in database')
-    throw new Error('User not found in database - please complete onboarding')
-  }
-  
-  if (dbUser.status !== 'ACTIVE') {
-    console.error('❌ User account is not active:', dbUser.status)
-    throw new Error('Account not active')
-  }
-  
-  console.log('✅ User found in database with organization:', {
-    userId: dbUser.id,
-    organizationId: dbUser.organizationId,
-    organizationName: dbUser.organization.name,
-    userRole: dbUser.role,
-    userStatus: dbUser.status
-  })
-  
-  return {
-    user: dbUser,
-    organization: dbUser.organization
+    
+    console.log('✅ Supabase user authenticated:', {
+      id: user.id,
+      email: user.email
+    })
+    
+    // Get user's organization from database
+    console.log('🔍 Looking up user in database...')
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      include: {
+        organization: true
+      }
+    })
+    
+    if (!dbUser) {
+      console.error('❌ User not found in database')
+      throw new Error('User not found')
+    }
+    
+    if (dbUser.status !== 'ACTIVE') {
+      console.error('❌ User account is not active:', dbUser.status)
+      throw new Error('Account not active')
+    }
+    
+    console.log('✅ User found in database with organization:', {
+      userId: dbUser.id,
+      organizationId: dbUser.organizationId,
+      organizationName: dbUser.organization.name,
+      userRole: dbUser.role,
+      userStatus: dbUser.status
+    })
+    
+    return {
+      user: dbUser,
+      organization: dbUser.organization
+    }
+  } catch (error) {
+    console.error('❌ Authentication error:', error)
+    throw error
   }
 }
 
@@ -56,18 +78,6 @@ export async function GET(request: NextRequest) {
   console.log('📋 GET /api/projects - Fetching projects list')
   
   try {
-    // Validate connection health before starting
-    const connectionHealthy = await validatePrismaConnection()
-    if (!connectionHealthy) {
-      console.log('⚠️ Connection unhealthy, attempting recovery...')
-      const recovered = await recoverPrismaConnection()
-      if (!recovered) {
-        return NextResponse.json(createApiError(
-          'Database connection issue - please try again in a moment'
-        ), { status: 503 })
-      }
-    }
-
     const { user, organization } = await authenticateRequest(request)
     
     const url = new URL(request.url)
@@ -147,33 +157,31 @@ export async function GET(request: NextRequest) {
     
     console.log(`✅ Found ${projects.length} projects for organization: ${organization.name}`)
     
-    return NextResponse.json(createApiResponse({
-      projects,
+    return NextResponse.json({
+      success: true,
+      data: projects,
       pagination: {
         total: totalCount,
         limit,
         offset,
         hasMore: offset + limit < totalCount
       }
-    }))
+    })
     
   } catch (error: any) {
     console.error('❌ GET /api/projects error:', error)
     
-    // Check if this is a connection-related error and attempt recovery
-    if (error instanceof Error && 
-        (error.message.includes('prepared statement') || 
-         error.message.includes('connection') || 
-         error.message.includes('ConnectionError'))) {
-      console.log('🔄 Connection error detected, attempting recovery...')
-      await recoverPrismaConnection()
+    if (error.message.includes('Authorization') || error.message.includes('token') || error.message.includes('User not found')) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 401 }
+      )
     }
     
-    if (error.message.includes('Authentication') || error.message.includes('not found in database')) {
-      return NextResponse.json(createApiError(error.message), { status: 401 })
-    }
-    
-    return NextResponse.json(createApiError('Failed to fetch projects'), { status: 500 })
+    return NextResponse.json(
+      { error: 'Failed to fetch projects' },
+      { status: 500 }
+    )
   }
 }
 
@@ -182,18 +190,6 @@ export async function POST(request: NextRequest) {
   console.log('📋 POST /api/projects - Creating new project')
   
   try {
-    // Validate connection health before starting
-    const connectionHealthy = await validatePrismaConnection()
-    if (!connectionHealthy) {
-      console.log('⚠️ Connection unhealthy, attempting recovery...')
-      const recovered = await recoverPrismaConnection()
-      if (!recovered) {
-        return NextResponse.json(createApiError(
-          'Database connection issue - please try again in a moment'
-        ), { status: 503 })
-      }
-    }
-
     const { user, organization } = await authenticateRequest(request)
     
     const body = await request.json()
@@ -201,12 +197,13 @@ export async function POST(request: NextRequest) {
     
     // Validate required fields
     if (!body.name || !body.clientId) {
-      return NextResponse.json(createApiError(
-        'Project name and client are required'
-      ), { status: 400 })
+      return NextResponse.json(
+        { error: 'Project name and client are required' },
+        { status: 400 }
+      )
     }
     
-    // Verify client exists and belongs to organization
+    // Verify client belongs to organization
     const client = await prisma.client.findFirst({
       where: {
         id: body.clientId,
@@ -215,75 +212,64 @@ export async function POST(request: NextRequest) {
     })
     
     if (!client) {
-      return NextResponse.json(createApiError(
-        'Client not found or does not belong to your organization'
-      ), { status: 404 })
+      return NextResponse.json(
+        { error: 'Client not found' },
+        { status: 404 }
+      )
     }
     
-    // Create project in transaction
-    const project = await prisma.$transaction(async (tx) => {
-      const newProject = await tx.project.create({
-        data: {
-          name: body.name,
-          description: body.description || null,
-          clientId: body.clientId,
-          organizationId: organization.id,
-          status: body.status || 'ACTIVE',
-          startDate: body.startDate ? new Date(body.startDate) : null,
-          endDate: body.endDate ? new Date(body.endDate) : null,
-          budgetAmount: body.budget ? parseFloat(body.budget) : null,
-          managerId: user.id
+    // Create project
+    const project = await prisma.project.create({
+      data: {
+        organizationId: organization.id,
+        clientId: body.clientId,
+        name: body.name,
+        description: body.description,
+        status: body.status || 'PLANNING',
+        priority: body.priority || 'MEDIUM',
+        startDate: body.startDate ? new Date(body.startDate) : null,
+        endDate: body.endDate ? new Date(body.endDate) : null,
+        estimatedHours: body.estimatedHours ? parseFloat(body.estimatedHours) : null,
+        budgetAmount: body.budgetAmount ? parseFloat(body.budgetAmount) : null,
+        currency: body.currency || 'USD',
+        managerId: body.managerId || user.id
+      },
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+            status: true
+          }
         },
-        include: {
-          client: {
-            select: {
-              id: true,
-              name: true,
-              status: true
-            }
+        _count: {
+          select: {
+            deliverables: true
           }
         }
-      })
-
-      // Create activity log
-      await tx.activityLog.create({
-        data: {
-          organizationId: organization.id,
-          userId: user.id,
-          action: 'project.created',
-          resourceType: 'Project',
-          resourceId: newProject.id,
-          metadata: {
-            projectName: newProject.name,
-            clientName: client.name,
-            createdBy: user.name
-          }
-        }
-      })
-
-      return newProject
+      }
     })
     
-    console.log(`✅ Created project: ${project.name} for client: ${client.name}`)
+    console.log(`✅ Created project: ${project.name} for client ${client.name}`)
     
-    return NextResponse.json(createApiResponse(project, 'Project created successfully'), { status: 201 })
+    return NextResponse.json({
+      success: true,
+      data: project
+    }, { status: 201 })
     
   } catch (error: any) {
     console.error('❌ POST /api/projects error:', error)
     
-    // Check if this is a connection-related error and attempt recovery
-    if (error instanceof Error && 
-        (error.message.includes('prepared statement') || 
-         error.message.includes('connection') || 
-         error.message.includes('ConnectionError'))) {
-      console.log('🔄 Connection error detected, attempting recovery...')
-      await recoverPrismaConnection()
+    if (error.message.includes('Authorization') || error.message.includes('token') || error.message.includes('User not found')) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 401 }
+      )
     }
     
-    if (error.message.includes('Authentication') || error.message.includes('not found in database')) {
-      return NextResponse.json(createApiError(error.message), { status: 401 })
-    }
-    
-    return NextResponse.json(createApiError('Failed to create project'), { status: 500 })
+    return NextResponse.json(
+      { error: 'Failed to create project' },
+      { status: 500 }
+    )
   }
 } 
