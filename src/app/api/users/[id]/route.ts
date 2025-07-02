@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient, createSupabaseAdminClient } from '@/lib/supabase'
-import { prisma } from '@/lib/prisma'
+import { prisma, validatePrismaConnection, recoverPrismaConnection } from '@/lib/prisma'
 
 async function authenticateRequest(request: NextRequest) {
   const supabase = await createSupabaseServerClient()
@@ -32,6 +32,20 @@ export async function DELETE(
   try {
     const { id: userId } = await params
     console.log(`🗑️  DELETE /api/users/${userId} - Attempting user deletion`)
+    
+    // Validate connection health before starting complex operations
+    const connectionHealthy = await validatePrismaConnection()
+    if (!connectionHealthy) {
+      console.log('⚠️ Connection unhealthy, attempting recovery...')
+      const recovered = await recoverPrismaConnection()
+      if (!recovered) {
+        return NextResponse.json({
+          error: 'Database connection issue',
+          details: 'Please try again in a moment',
+          resolution: 'The system is recovering from a temporary connection issue'
+        }, { status: 503 })
+      }
+    }
     
     const { user: currentUser, dbUser: currentDbUser } = await authenticateRequest(request)
     console.log('✅ Request authenticated for org:', currentDbUser.organization.name)
@@ -248,6 +262,15 @@ export async function DELETE(
 
   } catch (error) {
     console.error('❌ DELETE /api/users/[id] CRITICAL ERROR:', error)
+    
+    // Check if this is a connection-related error and attempt recovery
+    if (error instanceof Error && 
+        (error.message.includes('prepared statement') || 
+         error.message.includes('connection') || 
+         error.message.includes('ConnectionError'))) {
+      console.log('🔄 Connection error detected, attempting recovery...')
+      await recoverPrismaConnection()
+    }
     
     if (error instanceof Error) {
       // Authentication errors
