@@ -86,69 +86,69 @@ export async function POST(request: NextRequest) {
     const temporaryPassword = generateSecurePassword()
     const fullName = `${firstName} ${lastName}`
 
-    console.log('🔄 Starting atomic transaction for user creation...')
-
-    // Execute all database operations in a single transaction to prevent connection issues
-    const result = await prisma.$transaction(async (tx) => {
-      console.log('🔍 Checking for existing user in transaction...')
-      
-      // Check if user already exists in the organization
-      const existingUser = await tx.user.findFirst({
-        where: {
-          email: email,
-          organizationId: dbUser.organizationId
-        }
-      })
-
-      if (existingUser) {
-        throw new Error('User with this email already exists in your organization')
-      }
-
-      console.log('👤 Creating Supabase Auth account...')
-      
-      // Create Supabase Auth user using Admin API
-      supabaseAdmin = createSupabaseAdminClient()
-      const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+    console.log('🔍 Checking for existing user...')
+    
+    // First check if user already exists (separate from transaction to avoid conflicts)
+    const existingUser = await prisma.user.findFirst({
+      where: {
         email: email,
-        password: temporaryPassword,
-        email_confirm: true, // Mark as confirmed so they can log in immediately
-        user_metadata: {
-          organizationId: dbUser.organizationId,
-          role: role,
-          name: fullName,
-          firstName: firstName,
-          lastName: lastName,
-          title: title,
-          phone: phone || null,
-          companyName: dbUser.organization.name,
-          organizationSlug: dbUser.organization.slug,
-          invitedBy: dbUser.id,
-          invitedAt: new Date().toISOString(),
-          temporaryPassword: true // Flag to prompt password change on first login
-        }
-      })
-
-      if (authError) {
-        console.error('❌ Failed to create Supabase Auth user:', authError)
-        throw new Error(`Failed to create authentication account: ${authError.message}`)
+        organizationId: dbUser.organizationId
       }
+    })
 
-      if (!authUser.user) {
-        throw new Error('Failed to create authentication account: No user returned')
+    if (existingUser) {
+      return NextResponse.json({
+        error: 'User with this email already exists in your organization'
+      }, { status: 409 })
+    }
+
+    console.log('👤 Creating Supabase Auth account...')
+    
+    // Create Supabase Auth user OUTSIDE of Prisma transaction to prevent connection conflicts
+    supabaseAdmin = createSupabaseAdminClient()
+    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email: email,
+      password: temporaryPassword,
+      email_confirm: true, // Mark as confirmed so they can log in immediately
+      user_metadata: {
+        organizationId: dbUser.organizationId,
+        role: role,
+        name: fullName,
+        firstName: firstName,
+        lastName: lastName,
+        title: title,
+        phone: phone || null,
+        companyName: dbUser.organization.name,
+        organizationSlug: dbUser.organization.slug,
+        invitedBy: dbUser.id,
+        invitedAt: new Date().toISOString(),
+        temporaryPassword: true // Flag to prompt password change on first login
       }
+    })
 
-      // Store auth user ID for potential rollback
-      authUserId = authUser.user.id
+    if (authError) {
+      console.error('❌ Failed to create Supabase Auth user:', authError)
+      throw new Error(`Failed to create authentication account: ${authError.message}`)
+    }
 
-      console.log('✅ Supabase Auth user created:', {
-        id: authUser.user.id,
-        email: authUser.user.email,
-        emailConfirmed: authUser.user.email_confirmed_at ? true : false
-      })
+    if (!authUser.user) {
+      throw new Error('Failed to create authentication account: No user returned')
+    }
 
-      console.log('📝 Creating database user record in transaction...')
-      
-      // Create the database user record within the transaction
+    // Store auth user ID for potential cleanup
+    authUserId = authUser.user.id
+
+    console.log('✅ Supabase Auth user created:', {
+      id: authUser.user.id,
+      email: authUser.user.email,
+      emailConfirmed: authUser.user.email_confirmed_at ? true : false
+    })
+
+    console.log('📝 Creating database records in transaction...')
+    
+    // Now create database records in a separate, clean transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Create the database user record
       const newUser = await tx.user.create({
         data: {
           id: authUser.user.id, // Use the Supabase Auth user ID
@@ -192,33 +192,29 @@ export async function POST(request: NextRequest) {
         }
       })
 
-      // Return all data needed for email and response
-      return {
-        authUser: authUser.user,
-        newUser,
-        organization: dbUser.organization
-      }
+      // Return user data
+      return { newUser }
     }, {
-      timeout: 30000, // 30 second timeout for long operations
-      isolationLevel: 'ReadCommitted' // Prevent read conflicts
+      timeout: 20000, // 20 second timeout
+      isolationLevel: 'ReadCommitted'
     })
 
-    console.log('✅ Transaction completed successfully')
+    console.log('✅ Database transaction completed successfully')
 
-    // Send invitation email outside of transaction (non-critical)
+    // Send invitation email (separate from critical operations)
     console.log('📧 Sending invitation email...')
     const emailResult = await sendInvitationEmail({
       to: email,
       userName: fullName,
       userTitle: title,
       inviterName: dbUser.name,
-      organizationName: result.organization.name,
+      organizationName: dbUser.organization.name,
       role: role,
       temporaryPassword: temporaryPassword,
-      organizationBranding: result.organization.branding
+      organizationBranding: dbUser.organization.branding
     })
 
-    // Update activity log with email status (separate transaction to avoid blocking)
+    // Update activity log with email status (non-blocking)
     try {
       await prisma.activityLog.updateMany({
         where: {
@@ -228,7 +224,7 @@ export async function POST(request: NextRequest) {
         data: {
           metadata: {
             role: role,
-            supabaseAuthId: result.authUser.id,
+            supabaseAuthId: authUser.user.id,
             authAccountCreated: true,
             databaseRecordCreated: true,
             invitationType: emailResult.success ? 'email' : 'manual',
@@ -243,7 +239,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('🎉 USER INVITATION PROCESS COMPLETE:')
-    console.log('  ✅ Supabase Auth account created:', result.authUser.id)
+    console.log('  ✅ Supabase Auth account created:', authUser.user.id)
     console.log('  ✅ Database user record created:', result.newUser.id)
     console.log('  📧 Email result:', emailResult.success ? 'SUCCESS' : `FAILED: ${emailResult.error}`)
 
@@ -287,9 +283,9 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error) {
-    console.error('❌ POST /api/users/invite CRITICAL ERROR:', error)
+    console.error('❌ POST /api/users/invite ERROR:', error)
     
-    // Perform Supabase auth cleanup if needed (outside of database transaction)
+    // Perform Supabase auth cleanup if needed (only if we created the auth user)
     if (authUserId && supabaseAdmin) {
       console.log('🔄 Cleaning up Supabase Auth user due to error...')
       try {
@@ -310,13 +306,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'User not found - please complete onboarding' }, { status: 401 })
       }
       
-      // User already exists
-      if (error.message.includes('already exists in your organization')) {
-        return NextResponse.json({ 
-          error: 'User with this email already exists in your organization' 
-        }, { status: 409 })
-      }
-      
       // Supabase Auth creation errors
       if (error.message.includes('Failed to create authentication account')) {
         return NextResponse.json({ 
@@ -330,7 +319,7 @@ export async function POST(request: NextRequest) {
       if (error.message.includes('transaction') || error.message.includes('prepared statement')) {
         return NextResponse.json({ 
           error: 'Database operation failed',
-          details: 'Transaction or connection error occurred',
+          details: 'Connection or transaction error occurred',
           resolution: 'Please try again. If the problem persists, contact support.'
         }, { status: 500 })
       }
@@ -347,5 +336,5 @@ export async function POST(request: NextRequest) {
       resolution: 'Check server logs for details'
     }, { status: 500 })
   }
-  // Connection management handled by Prisma singleton - no manual disconnect needed
+  // Connection management handled by Prisma singleton
 } 
