@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient, createSupabaseAdminClient } from '@/lib/supabase'
-import { prisma } from '@/lib/prisma'
+import { prisma, validatePrismaConnection, recoverPrismaConnection } from '@/lib/prisma'
 import { sendInvitationEmail } from '@/lib/email'
 import crypto from 'crypto'
 
@@ -50,6 +50,20 @@ export async function POST(request: NextRequest) {
   
   try {
     console.log('📨 POST /api/users/invite - Starting user invitation')
+    
+    // Validate connection health before starting
+    const connectionHealthy = await validatePrismaConnection()
+    if (!connectionHealthy) {
+      console.log('⚠️ Connection unhealthy, attempting recovery...')
+      const recovered = await recoverPrismaConnection()
+      if (!recovered) {
+        return NextResponse.json({
+          error: 'Database connection issue',
+          details: 'Please try again in a moment',
+          resolution: 'The system is recovering from a temporary connection issue'
+        }, { status: 503 })
+      }
+    }
     
     const { user, dbUser } = await authenticateRequest(request)
     console.log('✅ Request authenticated for org:', dbUser.organization.name)
@@ -146,7 +160,7 @@ export async function POST(request: NextRequest) {
 
     console.log('📝 Creating database records in transaction...')
     
-    // Now create database records in a separate, clean transaction
+    // Now create database records in a separate, clean transaction with timeout
     const result = await prisma.$transaction(async (tx) => {
       // Create the database user record
       const newUser = await tx.user.create({
@@ -195,7 +209,7 @@ export async function POST(request: NextRequest) {
       // Return user data
       return { newUser }
     }, {
-      timeout: 20000, // 20 second timeout
+      timeout: 15000, // Shorter timeout to prevent hanging
       isolationLevel: 'ReadCommitted'
     })
 
@@ -285,6 +299,15 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('❌ POST /api/users/invite ERROR:', error)
     
+    // Check if this is a connection-related error and attempt recovery
+    if (error instanceof Error && 
+        (error.message.includes('prepared statement') || 
+         error.message.includes('connection') || 
+         error.message.includes('ConnectionError'))) {
+      console.log('🔄 Connection error detected, attempting recovery...')
+      await recoverPrismaConnection()
+    }
+    
     // Perform Supabase auth cleanup if needed (only if we created the auth user)
     if (authUserId && supabaseAdmin) {
       console.log('🔄 Cleaning up Supabase Auth user due to error...')
@@ -320,7 +343,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ 
           error: 'Database operation failed',
           details: 'Connection or transaction error occurred',
-          resolution: 'Please try again. If the problem persists, contact support.'
+          resolution: 'The connection has been reset. Please try again.'
         }, { status: 500 })
       }
       
@@ -336,5 +359,5 @@ export async function POST(request: NextRequest) {
       resolution: 'Check server logs for details'
     }, { status: 500 })
   }
-  // Connection management handled by Prisma singleton
+  // Connection management handled by enhanced Prisma singleton with recovery
 } 

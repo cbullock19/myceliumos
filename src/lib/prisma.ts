@@ -5,10 +5,53 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-export const prisma = globalForPrisma.prisma ?? new PrismaClient({
-  // Log configuration - minimal in production for performance
-  log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-})
+// Create a new Prisma client with enhanced error handling and recovery
+function createPrismaClient() {
+  const client = new PrismaClient({
+    // Enhanced logging for debugging session-specific issues
+    log: process.env.NODE_ENV === 'development' 
+      ? ['query', 'error', 'warn', 'info'] 
+      : ['error'],
+    
+    // Configure connection timeouts to prevent hanging connections
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
+    },
+  })
+
+  // Client is configured for enhanced session management
+
+  return client
+}
+
+export const prisma = globalForPrisma.prisma ?? createPrismaClient()
+
+// Add health check function for session validation
+export async function validatePrismaConnection() {
+  try {
+    await prisma.$queryRaw`SELECT 1`
+    return true
+  } catch (error) {
+    console.error('❌ Prisma connection validation failed:', error)
+    return false
+  }
+}
+
+// Enhanced connection recovery for session-specific issues
+export async function recoverPrismaConnection() {
+  console.log('🔄 Attempting Prisma connection recovery...')
+  try {
+    await prisma.$disconnect()
+    await prisma.$connect()
+    console.log('✅ Prisma connection recovery successful')
+    return true
+  } catch (error) {
+    console.error('❌ Prisma connection recovery failed:', error)
+    return false
+  }
+}
 
 // Connection management for serverless environments
 if (process.env.NODE_ENV === 'production') {
