@@ -1,6 +1,7 @@
 import { Resend } from 'resend'
 import { render } from '@react-email/render'
 import InvitationEmail from '@/emails/InvitationEmail'
+import { getBaseUrl } from './utils'
 
 // Initialize Resend
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -15,6 +16,7 @@ interface SendInvitationEmailParams {
   temporaryPassword: string
   organizationBranding?: {
     primaryColor?: string
+    secondaryColor?: string
     logoUrl?: string
   }
 }
@@ -43,6 +45,7 @@ export async function sendInvitationEmail(params: SendInvitationEmailParams): Pr
     console.log('  3. Add RESEND_API_KEY=re_... to your .env.local file')
     
     // Return fallback with email content for debugging
+    const baseUrl = getBaseUrl()
     const emailContent = await render(InvitationEmail({
       userName: params.userName,
       userTitle: params.userTitle,
@@ -50,7 +53,7 @@ export async function sendInvitationEmail(params: SendInvitationEmailParams): Pr
       organizationName: params.organizationName,
       role: params.role,
       temporaryPassword: params.temporaryPassword,
-      loginUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/signin?email=${encodeURIComponent(params.to)}`,
+      loginUrl: `${baseUrl}/auth/signin?email=${encodeURIComponent(params.to)}`,
       organizationBranding: params.organizationBranding
     }))
 
@@ -63,14 +66,19 @@ export async function sendInvitationEmail(params: SendInvitationEmailParams): Pr
   }
 
   try {
-    // Generate the login URL with pre-filled email
-    const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/signin?email=${encodeURIComponent(params.to)}`
+    console.log('📧 Preparing invitation email for:', params.to)
 
-    // Send email using Resend with React Email template
-    const { data, error } = await resend.emails.send({
-      from: process.env.FROM_EMAIL || 'Mycelium OS <onboarding@resend.dev>',
+    // Get the production URL dynamically
+    const baseUrl = getBaseUrl()
+    const loginUrl = `${baseUrl}/auth/signin?email=${encodeURIComponent(params.to)}`
+
+    console.log('🌐 Using base URL:', baseUrl)
+    console.log('🔗 Login URL:', loginUrl)
+
+    const emailData = {
       to: [params.to],
-      subject: `Welcome to ${params.organizationName}! Your account is ready 🎉`,
+      from: 'Mycelium OS <invites@myceliumos.com>',
+      subject: `Welcome to ${params.organizationName} - Your Account is Ready!`,
       react: InvitationEmail({
         userName: params.userName,
         userTitle: params.userTitle,
@@ -78,49 +86,34 @@ export async function sendInvitationEmail(params: SendInvitationEmailParams): Pr
         organizationName: params.organizationName,
         role: params.role,
         temporaryPassword: params.temporaryPassword,
-        loginUrl,
+        loginUrl: loginUrl,
         organizationBranding: params.organizationBranding
-      }),
-    })
+      })
+    }
+
+    console.log('📨 Sending email via Resend...')
+    const { data, error } = await resend.emails.send(emailData)
 
     if (error) {
       console.error('❌ Resend API error:', error)
       return {
         success: false,
-        error: error.message || 'Failed to send email',
+        error: `Email delivery failed: ${error.message}`,
         needsFallback: true
       }
     }
 
-    console.log('✅ Email sent successfully!')
-    console.log('📧 Message ID:', data?.id)
-    console.log('📧 Recipient:', params.to)
-    console.log('📧 Subject: Welcome to', params.organizationName)
-
+    console.log('✅ Email sent successfully:', data?.id)
     return {
       success: true,
       messageId: data?.id
     }
 
   } catch (error) {
-    console.error('❌ Email delivery failed:', error)
-    
-    // Generate fallback email content for debugging
-    const emailContent = await render(InvitationEmail({
-      userName: params.userName,
-      userTitle: params.userTitle,
-      inviterName: params.inviterName,
-      organizationName: params.organizationName,
-      role: params.role,
-      temporaryPassword: params.temporaryPassword,
-      loginUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/signin?email=${encodeURIComponent(params.to)}`,
-      organizationBranding: params.organizationBranding
-    }))
-
+    console.error('❌ Email sending error:', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown email error',
-      emailContent,
       needsFallback: true
     }
   }

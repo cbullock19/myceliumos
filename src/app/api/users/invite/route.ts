@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient, createSupabaseAdminClient } from '@/lib/supabase'
 import { prisma, validatePrismaConnection, recoverPrismaConnection } from '@/lib/prisma'
 import { sendInvitationEmail } from '@/lib/email'
+import { getBaseUrl } from '@/lib/utils'
 import crypto from 'crypto'
 
 async function authenticateRequest(request: NextRequest) {
@@ -257,6 +258,9 @@ export async function POST(request: NextRequest) {
     console.log('  ✅ Database user record created:', result.newUser.id)
     console.log('  📧 Email result:', emailResult.success ? 'SUCCESS' : `FAILED: ${emailResult.error}`)
 
+    // Get the production URL dynamically
+    const baseUrl = getBaseUrl()
+
     // Determine response based on email delivery status
     if (emailResult.needsFallback) {
       console.log('📧 EMAIL NOT DELIVERED - Providing fallback with temporary password')
@@ -277,7 +281,7 @@ export async function POST(request: NextRequest) {
         loginInstructions: {
           email: email,
           temporaryPassword: temporaryPassword,
-          loginUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/signin`,
+          loginUrl: `${baseUrl}/auth/signin`,
           note: "They'll be prompted to set a permanent password on first login."
         }
       })
