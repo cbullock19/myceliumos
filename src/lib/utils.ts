@@ -337,3 +337,91 @@ export const getNotificationIcon = (type: string): string => {
       return '📢'
   }
 }
+
+// PostgreSQL 42P05 Error handling utilities for API routes
+export function isPreparedStatementError(error: any): boolean {
+  if (!error) return false
+  
+  const errorMessage = error.message || ''
+  const errorCode = error.code || ''
+  
+  // PostgreSQL Error Code 42P05: "prepared statement already exists"
+  return (
+    errorCode === '42P05' ||
+    errorMessage.includes('prepared statement') ||
+    errorMessage.includes('already exists') ||
+    errorMessage.includes('d1') || // Common prepared statement names
+    errorMessage.includes('d2') ||
+    errorMessage.includes('ConnectionError') ||
+    errorMessage.includes('Invalid \'prisma')
+  )
+}
+
+// Enhanced API error response for connection issues
+export function createConnectionErrorResponse(error: any): ApiResponse {
+  if (isPreparedStatementError(error)) {
+    return {
+      success: false,
+      error: 'Database connection temporarily unavailable',
+      message: 'PostgreSQL prepared statement conflict detected - system is recovering automatically'
+    }
+  }
+  
+  // Generic connection error
+  return {
+    success: false,
+    error: 'Database connection issue',
+    message: 'Temporary connectivity problem - please try again in a moment'
+  }
+}
+
+// Retry wrapper for database operations with 42P05 handling
+export async function withDatabaseRetry<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 2,
+  delayMs: number = 100
+): Promise<T> {
+  let lastError: any
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation()
+    } catch (error) {
+      lastError = error
+      
+      if (isPreparedStatementError(error) && attempt < maxRetries) {
+        console.log(`🔄 Attempt ${attempt}: PostgreSQL 42P05 error detected, retrying in ${delayMs}ms...`)
+        
+        // Wait before retry
+        await new Promise(resolve => setTimeout(resolve, delayMs))
+        
+        // Exponential backoff for subsequent retries
+        delayMs *= 1.5
+        continue
+      }
+      
+      // Non-42P05 error or max retries exceeded
+      throw error
+    }
+  }
+  
+  throw lastError
+}
+
+// Safe database operation wrapper for API routes
+export async function safeDatabaseOperation<T>(
+  operation: () => Promise<T>,
+  fallbackValue?: T
+): Promise<T | undefined> {
+  try {
+    return await withDatabaseRetry(operation)
+  } catch (error) {
+    console.error('❌ Database operation failed:', error)
+    
+    if (isPreparedStatementError(error)) {
+      console.error('🚨 PostgreSQL 42P05 prepared statement error detected')
+    }
+    
+    return fallbackValue
+  }
+}
