@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient, createSupabaseAdminClient } from '@/lib/supabase'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import { sendInvitationEmail } from '@/lib/email'
 import crypto from 'crypto'
-
-const prisma = new PrismaClient()
 
 async function authenticateRequest(request: NextRequest) {
   const supabase = await createSupabaseServerClient()
@@ -304,7 +302,7 @@ export async function POST(request: NextRequest) {
       error: 'Unknown error occurred during user invitation',
       resolution: 'Check server logs for details'
     }, { status: 500 })
-  } finally {
-    await prisma.$disconnect()
   }
+  // Note: Never call prisma.$disconnect() in API routes when using singleton
+  // It breaks the shared connection pool for all other routes
 } 

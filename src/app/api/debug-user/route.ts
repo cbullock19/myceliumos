@@ -100,9 +100,9 @@ export async function GET(request: NextRequest) {
       error: 'Debug failed', 
       details: error instanceof Error ? error.message : 'Unknown error' 
     }, { status: 500 })
-  } finally {
-    await prisma.$disconnect()
   }
+  // Note: Never call prisma.$disconnect() in API routes when using singleton
+  // It breaks the shared connection pool for all other routes
 }
 
 function generateRecommendations(dbUser: any, authUser: any, authError: any) {

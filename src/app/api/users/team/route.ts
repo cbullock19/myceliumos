@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
     }
     
     return NextResponse.json({ error: 'Failed to fetch team members' }, { status: 500 })
-  } finally {
-    await prisma.$disconnect()
   }
+  // Note: Never call prisma.$disconnect() in API routes when using singleton
+  // It breaks the shared connection pool for all other routes
 } 
