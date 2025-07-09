@@ -11,7 +11,7 @@ import { generateOrganizationSlug } from '@/lib/utils'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Eye, EyeOff, Building, User, Mail, Lock, AlertCircle } from 'lucide-react'
+import { Eye, EyeOff, Building, User, Mail, Lock, AlertCircle, CheckCircle } from 'lucide-react'
 
 const signupSchema = z.object({
   companyName: z.string().min(2, 'Company name must be at least 2 characters'),
@@ -26,6 +26,8 @@ export default function SignupPage() {
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [isSuccess, setIsSuccess] = useState(false)
+  const [successMessage, setSuccessMessage] = useState('')
   const supabase = createSupabaseClient()
 
   const {
@@ -74,13 +76,9 @@ export default function SignupPage() {
           // User is authenticated, redirect to onboarding
           router.push('/onboarding')
         } else {
-          // No session - email confirmation might be required
-          setError('root', { 
-            message: 'Account created! Please check your email and click the confirmation link, then sign in to continue.' 
-          })
-          setTimeout(() => {
-            router.push('/auth/signin')
-          }, 3000)
+          // No session - email confirmation required
+          setIsSuccess(true)
+          setSuccessMessage('Account created successfully! Please check your email and click the confirmation link to activate your account. You can then sign in to continue.')
         }
       }
     } catch (error) {
@@ -181,13 +179,25 @@ export default function SignupPage() {
                 </div>
               )}
 
+              {isSuccess && (
+                <div className="text-sm text-green-600 bg-green-50 p-4 rounded-lg border border-green-200">
+                  <div className="flex">
+                    <CheckCircle className="h-5 w-5 text-green-400" />
+                    <div className="ml-3">
+                      <p>{successMessage}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <Button
                 type="submit"
                 loading={isLoading}
                 fullWidth
+                disabled={isSuccess}
                 className="mt-8 h-12 text-lg font-semibold bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white border-0 shadow-lg shadow-emerald-200/50 hover:shadow-emerald-300/50 transition-all duration-200"
               >
-                Create Account
+                {isSuccess ? 'Account Created!' : 'Create Account'}
               </Button>
             </form>
 
