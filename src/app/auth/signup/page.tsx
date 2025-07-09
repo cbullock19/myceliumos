@@ -50,7 +50,8 @@ export default function SignupPage() {
             name: data.name,
             companyName: data.companyName,
             organizationSlug: generateOrganizationSlug(data.companyName)
-          }
+          },
+          emailRedirectTo: `${window.location.origin}/auth/callback`
         }
       })
 
@@ -64,8 +65,23 @@ export default function SignupPage() {
       }
 
       if (authData.user) {
-        // Redirect to onboarding page
-        router.push('/onboarding')
+        console.log('Signup successful:', authData.user)
+        console.log('User confirmed:', authData.user.email_confirmed_at)
+        console.log('Session:', authData.session)
+        
+        // Check if we have a session (user is authenticated)
+        if (authData.session) {
+          // User is authenticated, redirect to onboarding
+          router.push('/onboarding')
+        } else {
+          // No session - email confirmation might be required
+          setError('root', { 
+            message: 'Account created! Please check your email and click the confirmation link, then sign in to continue.' 
+          })
+          setTimeout(() => {
+            router.push('/auth/signin')
+          }, 3000)
+        }
       }
     } catch (error) {
       console.error('Signup error:', error)
