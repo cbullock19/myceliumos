@@ -64,8 +64,8 @@ export default function SignupPage() {
       }
 
       if (authData.user) {
-        // Redirect to email verification page
-        router.push('/auth/verify-email?email=' + encodeURIComponent(data.email))
+        // Redirect to onboarding page
+        router.push('/onboarding')
       }
     } catch (error) {
       console.error('Signup error:', error)
