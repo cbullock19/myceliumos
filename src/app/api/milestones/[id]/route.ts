@@ -13,10 +13,10 @@ async function authenticateRequest(request: NextRequest) {
 }
 
 // PUT /api/milestones/[id]
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { dbUser, organizationId } = await authenticateRequest(request)
-    const milestoneId = params.id
+    const { id: milestoneId } = await params
     const body = await request.json()
     const { name, description, startDate, dueDate, status, sortOrder } = body
     // Validate milestone ownership
@@ -46,10 +46,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // DELETE /api/milestones/[id]
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { dbUser, organizationId } = await authenticateRequest(request)
-    const milestoneId = params.id
+    const { id: milestoneId } = await params
     // Validate milestone ownership
     const milestone = await prisma.projectMilestone.findFirst({
       where: { id: milestoneId, project: { organizationId } }

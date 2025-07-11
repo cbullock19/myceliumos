@@ -13,10 +13,10 @@ async function authenticateRequest(request: NextRequest) {
 }
 
 // POST /api/projects/[id]/milestones
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { dbUser, organizationId } = await authenticateRequest(request)
-    const projectId = params.id
+    const { id: projectId } = await params
     const body = await request.json()
     const { name, description, startDate, dueDate, sortOrder } = body
     if (!name || !projectId) {

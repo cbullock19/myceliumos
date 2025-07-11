@@ -75,10 +75,10 @@ async function authenticateRequest(request: NextRequest) {
 }
 
 // GET /api/projects/[id] - Fetch project details
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { user, organization } = await authenticateRequest(request)
-    const projectId = params.id
+    const { id: projectId } = await params
     // Fetch project with milestones and deliverables
     const project = await prisma.project.findFirst({
       where: { id: projectId, organizationId: organization.id },
