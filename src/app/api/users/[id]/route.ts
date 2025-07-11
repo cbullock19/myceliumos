@@ -27,10 +27,10 @@ async function authenticateRequest(request: NextRequest) {
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: userId } = params
+    const { id: userId } = await params
     console.log(`🗑️  DELETE /api/users/${userId} - Attempting user deletion`)
     
     const { user: currentUser, dbUser: currentDbUser } = await authenticateRequest(request)

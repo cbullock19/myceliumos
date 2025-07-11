@@ -27,8 +27,8 @@ async function authenticateRequest(request: NextRequest) {
 }
 
 // PUT /api/service-types/[id] - Update service type (admin only)
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   try {
     console.log(`🔧 PUT /api/service-types/${id} - Updating service type`)
     
@@ -178,8 +178,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // DELETE /api/service-types/[id] - Delete service type (admin only)
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   try {
     console.log(`🔧 DELETE /api/service-types/${id} - Deleting service type`)
     
