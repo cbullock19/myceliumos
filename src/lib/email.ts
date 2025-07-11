@@ -75,9 +75,14 @@ export async function sendInvitationEmail(params: SendInvitationEmailParams): Pr
     console.log('🌐 Using base URL:', baseUrl)
     console.log('🔗 Login URL:', loginUrl)
 
+    // Use environment variable for from address, fallback to verified domain
+    const fromAddress = process.env.FROM_EMAIL || 'hello@myceliumos.app'
+    
+    console.log('📧 Using from address:', fromAddress)
+
     const emailData = {
       to: [params.to],
-      from: 'Mycelium OS <invites@myceliumos.com>',
+      from: fromAddress,
       subject: `Welcome to ${params.organizationName} - Your Account is Ready!`,
       react: InvitationEmail({
         userName: params.userName,

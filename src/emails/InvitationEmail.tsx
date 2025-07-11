@@ -134,7 +134,7 @@ export const InvitationEmail = ({
             </Text>
             <Text style={footerText}>
               Powered by{' '}
-              <Link href="https://myceliumos.com" style={footerLink}>
+              <Link href="https://myceliumos.app" style={footerLink}>
                 Mycelium OS
               </Link>
             </Text>
