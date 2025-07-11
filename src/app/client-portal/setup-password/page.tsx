@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,7 +24,8 @@ const passwordSetupSchema = z.object({
 
 type PasswordSetupFormData = z.infer<typeof passwordSetupSchema>
 
-export default function ClientPortalSetupPasswordPage() {
+// Separate component that uses useSearchParams
+function SetupPasswordForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
@@ -242,5 +243,41 @@ export default function ClientPortalSetupPasswordPage() {
         </Card>
       </div>
     </div>
+  )
+}
+
+// Main page component with Suspense boundary
+export default function ClientPortalSetupPasswordPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+        <div className="sm:mx-auto sm:w-full sm:max-w-md">
+          <div className="text-center mb-8">
+            <div className="mx-auto h-12 w-32 bg-gradient-to-r from-emerald-600 to-emerald-700 rounded flex items-center justify-center">
+              <span className="text-white font-semibold text-lg">
+                Client Portal
+              </span>
+            </div>
+            <h2 className="mt-6 text-3xl font-bold text-gray-900">
+              Set Your Password
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Loading...
+            </p>
+          </div>
+        </div>
+        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+          <Card className="bg-white shadow-xl">
+            <CardContent className="px-8 py-8">
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    }>
+      <SetupPasswordForm />
+    </Suspense>
   )
 } 
