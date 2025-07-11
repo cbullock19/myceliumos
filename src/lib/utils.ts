@@ -186,6 +186,27 @@ export const getBaseUrl = (): string => {
   return 'http://localhost:3000'
 }
 
+// Production URL guard to prevent Vercel URLs in production
+export const getProductionSafeBaseUrl = (): string => {
+  const baseUrl = getBaseUrl()
+  
+  // In production, ensure we're not using Vercel preview URLs
+  if (process.env.NODE_ENV === 'production' && baseUrl.includes('vercel.app')) {
+    console.warn('⚠️ Production environment detected but using Vercel URL:', baseUrl)
+    
+    // Fallback to custom domain if available
+    if (process.env.NEXT_PUBLIC_APP_URL) {
+      console.log('🔄 Falling back to custom domain:', process.env.NEXT_PUBLIC_APP_URL)
+      return process.env.NEXT_PUBLIC_APP_URL
+    }
+    
+    // If no custom domain configured, log error
+    console.error('❌ No custom domain configured for production. Please set NEXT_PUBLIC_APP_URL.')
+  }
+  
+  return baseUrl
+}
+
 export const buildUrl = (path: string, params?: Record<string, string>): string => {
   const url = new URL(path, getBaseUrl())
   if (params) {

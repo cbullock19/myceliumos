@@ -1,7 +1,7 @@
 import { Resend } from 'resend'
 import { render } from '@react-email/render'
 import InvitationEmail from '@/emails/InvitationEmail'
-import { getBaseUrl } from './utils'
+import { getProductionSafeBaseUrl } from './utils'
 
 // Initialize Resend
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -45,7 +45,7 @@ export async function sendInvitationEmail(params: SendInvitationEmailParams): Pr
     console.log('  3. Add RESEND_API_KEY=re_... to your .env.local file')
     
     // Return fallback with email content for debugging
-    const baseUrl = getBaseUrl()
+    const baseUrl = getProductionSafeBaseUrl()
     const emailContent = await render(InvitationEmail({
       userName: params.userName,
       userTitle: params.userTitle,
@@ -69,7 +69,7 @@ export async function sendInvitationEmail(params: SendInvitationEmailParams): Pr
     console.log('📧 Preparing invitation email for:', params.to)
 
     // Get the production URL dynamically
-    const baseUrl = getBaseUrl()
+    const baseUrl = getProductionSafeBaseUrl()
     const loginUrl = `${baseUrl}/auth/signin?email=${encodeURIComponent(params.to)}`
 
     console.log('🌐 Using base URL:', baseUrl)

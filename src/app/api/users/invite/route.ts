@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient, createSupabaseAdminClient } from '@/lib/supabase'
 import { prisma, validatePrismaConnection, recoverPrismaConnection } from '@/lib/prisma'
 import { sendInvitationEmail } from '@/lib/email'
-import { getBaseUrl } from '@/lib/utils'
+import { getProductionSafeBaseUrl } from '@/lib/utils'
 import crypto from 'crypto'
 
 async function authenticateRequest(request: NextRequest) {
@@ -259,7 +259,7 @@ export async function POST(request: NextRequest) {
     console.log('  📧 Email result:', emailResult.success ? 'SUCCESS' : `FAILED: ${emailResult.error}`)
 
     // Get the production URL dynamically
-    const baseUrl = getBaseUrl()
+    const baseUrl = getProductionSafeBaseUrl()
 
     // Determine response based on email delivery status
     if (emailResult.needsFallback) {
