@@ -153,6 +153,10 @@ model User {
   completedDeliverables Deliverable[] @relation("DeliverableCompleter")
   createdDeliverables Deliverable[] @relation("DeliverableCreator")
   
+  // Project Management
+  managedProjects Project[] @relation("ProjectManager")
+  completedMilestones ProjectMilestone[] @relation("MilestoneCompleter")
+  
   // Activity Tracking
   activityLogs       ActivityLog[]
   sentNotifications  Notification[] @relation("NotificationSender")
@@ -458,12 +462,52 @@ model Project {
   
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   client         Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  manager        User?        @relation("ProjectManager", fields: [managerId], references: [id], onDelete: SetNull)
+  milestones     ProjectMilestone[]
   deliverables   Deliverable[]
   
   @@index([organizationId])
   @@index([clientId])
   @@index([status])
   @@map("projects")
+}
+
+model ProjectMilestone {
+  id             String @id @default(cuid())
+  projectId      String
+  name           String
+  description    String?
+  
+  // Timeline
+  startDate      DateTime?
+  dueDate        DateTime?
+  
+  // Progress Tracking
+  status         MilestoneStatus @default(PENDING)
+  completedAt    DateTime?
+  completedById  String?
+  
+  // Ordering
+  sortOrder      Int @default(0)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  project        Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  completedBy    User?          @relation("MilestoneCompleter", fields: [completedById], references: [id], onDelete: SetNull)
+  deliverables   Deliverable[]
+  
+  @@index([projectId])
+  @@index([status])
+  @@index([sortOrder])
+  @@map("project_milestones")
+}
+
+enum MilestoneStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  OVERDUE
 }
 
 enum ProjectStatus {
@@ -479,6 +523,7 @@ model Deliverable {
   organizationId String
   clientId       String
   projectId      String?
+  milestoneId    String?
   serviceTypeId  String
   
   // Basic Information
@@ -521,6 +566,7 @@ model Deliverable {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   client         Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
   project        Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  milestone      ProjectMilestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
   serviceType    ServiceType  @relation(fields: [serviceTypeId], references: [id], onDelete: Cascade)
   
   assignedUser   User?        @relation("DeliverableAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
@@ -538,6 +584,7 @@ model Deliverable {
   @@index([assignedUserId])
   @@index([status])
   @@index([dueDate])
+  @@index([milestoneId])
   @@map("deliverables")
 }
 

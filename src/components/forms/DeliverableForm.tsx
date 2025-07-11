@@ -20,7 +20,8 @@ import {
   X,
   Plus,
   Shield,
-  FolderOpen
+  FolderOpen,
+  Target
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase'
 import DynamicFieldRenderer, { DeliverableField } from '@/components/ui/dynamic-field-renderer'
@@ -76,6 +77,7 @@ const deliverableSchema = z.object({
   clientId: z.string().min(1, 'Client is required'),
   serviceTypeId: z.string().min(1, 'Service type is required'),
   projectId: z.string().optional().transform(val => val === '' ? undefined : val),
+  milestoneId: z.string().optional().transform(val => val === '' ? undefined : val),
   assignedUserId: z.string().optional().transform(val => val === '' ? undefined : val),
   dueDate: z.string().optional(),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).default('MEDIUM'),
@@ -111,6 +113,7 @@ export default function DeliverableForm({
       clientId: initialData?.clientId || '',
       serviceTypeId: initialData?.serviceTypeId || '',
       projectId: initialData?.projectId || '',
+      milestoneId: initialData?.milestoneId || '',
       assignedUserId: initialData?.assignedUserId || '',
       dueDate: initialData?.dueDate ? new Date(initialData.dueDate).toISOString().split('T')[0] : '',
       priority: initialData?.priority || 'MEDIUM',
@@ -399,6 +402,27 @@ export default function DeliverableForm({
                   </p>
                 )}
               </div>
+
+              {/* Milestone Selection */}
+              {form.watch('projectId') && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700 flex items-center">
+                    <Target className="h-4 w-4 mr-2" />
+                    Milestone (Optional)
+                  </label>
+                  <select
+                    {...form.register('milestoneId')}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  >
+                    <option value="">No milestone (standalone deliverable)</option>
+                    {/* We'll need to fetch milestones for the selected project */}
+                    <option value="placeholder" disabled>Loading milestones...</option>
+                  </select>
+                  <p className="text-xs text-gray-500">
+                    Assign this deliverable to a specific milestone within the project
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 

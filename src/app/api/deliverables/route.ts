@@ -160,6 +160,7 @@ export async function POST(request: NextRequest) {
       clientId,
       serviceTypeId,
       projectId,
+      milestoneId,
       assignedUserId,
       dueDate,
       priority = 'MEDIUM',
@@ -252,6 +253,31 @@ export async function POST(request: NextRequest) {
       validAssignedUserId = assignedUserId
     }
 
+    // Verify milestone (if provided) belongs to the selected project
+    let validMilestoneId = null
+    if (milestoneId && milestoneId.trim() !== '') {
+      if (!projectId) {
+        return NextResponse.json(
+          createApiError('ProjectId is required when assigning a milestone'),
+          { status: 400 }
+        )
+      }
+      const milestone = await prisma.projectMilestone.findFirst({
+        where: {
+          id: milestoneId,
+          projectId,
+          project: { organizationId }
+        }
+      })
+      if (!milestone) {
+        return NextResponse.json(
+          createApiError('Milestone not found or does not belong to the selected project'),
+          { status: 400 }
+        )
+      }
+      validMilestoneId = milestoneId
+    }
+
     // Create the deliverable
     console.log('📋 Creating deliverable with assignedUserId:', validAssignedUserId)
     
@@ -262,6 +288,7 @@ export async function POST(request: NextRequest) {
         clientId,
         serviceTypeId,
         projectId: validProjectId,
+        milestoneId: validMilestoneId,
         organizationId,
         assignedUserId: validAssignedUserId,
         createdById: dbUser.id,

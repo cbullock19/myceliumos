@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createClient } from '@supabase/supabase-js'
+import { createApiError, createApiResponse } from '@/lib/utils'
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -74,99 +75,42 @@ async function authenticateRequest(request: NextRequest) {
 }
 
 // GET /api/projects/[id] - Fetch project details
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  console.log(`📋 GET /api/projects/${id} - Fetching project details`)
-  
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const { user, organization } = await authenticateRequest(request)
-    
-    // Fetch project with related data
+    const projectId = params.id
+    // Fetch project with milestones and deliverables
     const project = await prisma.project.findFirst({
-      where: {
-        id: id,
-        organizationId: organization.id
-      },
+      where: { id: projectId, organizationId: organization.id },
       include: {
-        client: {
-          select: {
-            id: true,
-            name: true,
-            status: true,
-            contactEmail: true,
-            contactPerson: true
-          }
-        },
-        deliverables: {
+        client: true,
+        milestones: {
+          orderBy: { sortOrder: 'asc' },
           include: {
-            serviceType: {
-              select: {
-                id: true,
-                name: true,
-                slug: true
-              }
-            },
-            assignedUser: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                role: true
-              }
-            },
-            createdBy: {
-              select: {
-                id: true,
-                name: true,
-                email: true
-              }
-            },
-            _count: {
-              select: {
-                comments: true
+            deliverables: {
+              include: {
+                assignedUser: {
+                  select: { id: true, name: true, email: true, role: true, avatarUrl: true }
+                },
+                serviceType: true,
+                client: true
               }
             }
-          },
-          orderBy: {
-            dueDate: 'asc'
           }
         },
-        _count: {
-          select: {
-            deliverables: true
-          }
+        deliverables: true,
+        manager: {
+          select: { id: true, name: true, email: true, role: true, avatarUrl: true }
         }
       }
     })
-    
     if (!project) {
-      return NextResponse.json(
-        { error: 'Project not found' },
-        { status: 404 }
-      )
+      return NextResponse.json(createApiError('Project not found or not accessible'), { status: 404 })
     }
-    
-    console.log(`✅ Found project: ${project.name} with ${project._count.deliverables} deliverables`)
-    
-    return NextResponse.json({
-      success: true,
-      data: project
-    })
-    
-  } catch (error: any) {
-    console.error(`❌ GET /api/projects/${id} error:`, error)
-    
-    if (error.message.includes('Authorization') || error.message.includes('token') || error.message.includes('User not found')) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 401 }
-      )
-    }
-    
-    return NextResponse.json(
-      { error: 'Failed to fetch project' },
-      { status: 500 }
-    )
+    return NextResponse.json(createApiResponse(project))
+  } catch (error) {
+    console.error('GET /api/projects/[id] error:', error)
+    return NextResponse.json(createApiError('Failed to fetch project'), { status: 500 })
   }
 }
 

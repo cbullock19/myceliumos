@@ -158,7 +158,9 @@ export async function PUT(
       dueDate,
       priority,
       status,
-      customFields
+      customFields,
+      projectId,
+      milestoneId
     } = body
 
     // Check if deliverable exists and user has access
@@ -178,6 +180,33 @@ export async function PUT(
       )
     }
 
+    // Validate milestoneId if provided
+    let validMilestoneId = undefined
+    if (milestoneId && milestoneId.trim() !== '') {
+      // Use projectId from body if present, else from existingDeliverable
+      const effectiveProjectId = projectId || existingDeliverable.projectId
+      if (!effectiveProjectId) {
+        return NextResponse.json(
+          createApiError('ProjectId is required when assigning a milestone'),
+          { status: 400 }
+        )
+      }
+      const milestone = await prisma.projectMilestone.findFirst({
+        where: {
+          id: milestoneId,
+          projectId: effectiveProjectId,
+          project: { organizationId }
+        }
+      })
+      if (!milestone) {
+        return NextResponse.json(
+          createApiError('Milestone not found or does not belong to the selected project'),
+          { status: 400 }
+        )
+      }
+      validMilestoneId = milestoneId
+    }
+
     // Build update data
     const updateData: any = {}
     
@@ -186,6 +215,7 @@ export async function PUT(
     if (priority !== undefined) updateData.priority = priority
     if (customFields !== undefined) updateData.customFields = customFields
     if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null
+    if (milestoneId !== undefined) updateData.milestoneId = validMilestoneId
 
     // Handle status changes
     if (status !== undefined && status !== existingDeliverable.status) {
