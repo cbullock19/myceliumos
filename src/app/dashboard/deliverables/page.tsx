@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { StatusBadge } from '@/components/ui/status-badge'
 import ServiceTypeBadge from '@/components/ui/service-type-badge'
 import DeliverableForm from '@/components/forms/DeliverableForm'
+import DeliverableKanban from '@/components/ui/deliverable-kanban'
 import { 
   Plus,
   Search,
@@ -933,9 +934,27 @@ export default function DeliverablesPage() {
         </CardContent>
       </Card>
 
-      {/* Deliverables List */}
+      {/* Deliverables Content */}
       <div className="grid gap-4">
-        {viewMode === 'calendar' ? (
+        {viewMode === 'kanban' ? (
+          <DeliverableKanban
+            deliverables={filteredDeliverables}
+            onStatusChange={async (deliverableId: string, newStatus: string) => {
+              const deliverable = deliverables.find(d => d.id === deliverableId)
+              if (deliverable) {
+                await handleStatusChange(deliverable, newStatus)
+              }
+            }}
+            onDeliverableClick={handleDeliverableClick}
+            onEditDeliverable={(deliverable) => {
+              setEditingDeliverable(deliverable)
+              setIsFormOpen(true)
+            }}
+            onDeleteDeliverable={handleDeleteDeliverable}
+            onCreateDeliverable={() => setIsFormOpen(true)}
+            isLoading={isLoading}
+          />
+        ) : viewMode === 'calendar' ? (
           renderCalendarView()
         ) : filteredDeliverables.length === 0 ? (
           <Card>

@@ -23,6 +23,7 @@ import {
   FolderOpen
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase'
+import DynamicFieldRenderer, { DeliverableField } from '@/components/ui/dynamic-field-renderer'
 
 // Types
 interface Client {
@@ -36,20 +37,6 @@ interface ServiceType {
   name: string
   slug: string
   deliverableFields: DeliverableField[]
-}
-
-interface DeliverableField {
-  id: string
-  name: string
-  slug: string
-  type: string
-  isRequired: boolean
-  defaultValue?: string
-  placeholder?: string
-  helpText?: string
-  options?: string
-  minLength?: number
-  maxLength?: number
 }
 
 interface User {
@@ -250,159 +237,23 @@ export default function DeliverableForm({
   })
 
   const renderCustomField = (field: DeliverableField) => {
-    const fieldName = `customFields.${field.slug}`
+    const fieldName = `customFields.${field.slug}` as any
+    const fieldValue = form.watch(fieldName)
+    const fieldError = form.formState.errors.customFields?.[field.slug]?.message as string
 
-    switch (field.type) {
-      case 'TEXT':
-        return (
-          <div key={field.id} className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">
-              {field.name}
-              {field.isRequired && <span className="text-red-500 ml-1">*</span>}
-            </label>
-            <Input
-              {...form.register(fieldName as any, { 
-                required: field.isRequired ? `${field.name} is required` : false,
-                minLength: field.minLength ? { value: field.minLength, message: `Minimum ${field.minLength} characters` } : undefined,
-                maxLength: field.maxLength ? { value: field.maxLength, message: `Maximum ${field.maxLength} characters` } : undefined
-              })}
-              placeholder={field.placeholder || field.name}
-              defaultValue={field.defaultValue}
-            />
-            {field.helpText && (
-              <p className="text-xs text-gray-500">{field.helpText}</p>
-            )}
-            {form.formState.errors.customFields?.[field.slug] && (
-              <p className="text-xs text-red-500">{String(form.formState.errors.customFields[field.slug]?.message)}</p>
-            )}
-          </div>
-        )
-      case 'TEXTAREA':
-        return (
-          <div key={field.id} className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">
-              {field.name}
-              {field.isRequired && <span className="text-red-500 ml-1">*</span>}
-            </label>
-            <textarea
-              {...form.register(fieldName as any, { 
-                required: field.isRequired ? `${field.name} is required` : false,
-                minLength: field.minLength ? { value: field.minLength, message: `Minimum ${field.minLength} characters` } : undefined,
-                maxLength: field.maxLength ? { value: field.maxLength, message: `Maximum ${field.maxLength} characters` } : undefined
-              })}
-              placeholder={field.placeholder || field.name}
-              defaultValue={field.defaultValue}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-              rows={3}
-            />
-            {field.helpText && (
-              <p className="text-xs text-gray-500">{field.helpText}</p>
-            )}
-            {form.formState.errors.customFields?.[field.slug] && (
-              <p className="text-xs text-red-500">{String(form.formState.errors.customFields[field.slug]?.message)}</p>
-            )}
-          </div>
-        )
-      case 'URL':
-        return (
-          <div key={field.id} className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">
-              {field.name}
-              {field.isRequired && <span className="text-red-500 ml-1">*</span>}
-            </label>
-            <Input
-              type="url"
-              {...form.register(fieldName as any, { 
-                required: field.isRequired ? `${field.name} is required` : false,
-                pattern: { value: /^https?:\/\/.+/, message: 'Please enter a valid URL' }
-              })}
-              placeholder={field.placeholder || 'https://example.com'}
-              defaultValue={field.defaultValue}
-            />
-            {field.helpText && (
-              <p className="text-xs text-gray-500">{field.helpText}</p>
-            )}
-            {form.formState.errors.customFields?.[field.slug] && (
-              <p className="text-xs text-red-500">{String(form.formState.errors.customFields[field.slug]?.message)}</p>
-            )}
-          </div>
-        )
-      case 'DATE':
-        return (
-          <div key={field.id} className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">
-              {field.name}
-              {field.isRequired && <span className="text-red-500 ml-1">*</span>}
-            </label>
-            <Input
-              type="date"
-              {...form.register(fieldName as any, { 
-                required: field.isRequired ? `${field.name} is required` : false
-              })}
-              defaultValue={field.defaultValue}
-            />
-            {field.helpText && (
-              <p className="text-xs text-gray-500">{field.helpText}</p>
-            )}
-            {form.formState.errors.customFields?.[field.slug] && (
-              <p className="text-xs text-red-500">{String(form.formState.errors.customFields[field.slug]?.message)}</p>
-            )}
-          </div>
-        )
-      case 'DROPDOWN':
-        const options = field.options ? field.options.split(',').map(opt => opt.trim()) : []
-        return (
-          <div key={field.id} className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">
-              {field.name}
-              {field.isRequired && <span className="text-red-500 ml-1">*</span>}
-            </label>
-            <select
-              {...form.register(fieldName as any, { 
-                required: field.isRequired ? `${field.name} is required` : false
-              })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-              defaultValue={field.defaultValue}
-            >
-              <option value="">Select {field.name}</option>
-              {options.map(option => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
-            {field.helpText && (
-              <p className="text-xs text-gray-500">{field.helpText}</p>
-            )}
-            {form.formState.errors.customFields?.[field.slug] && (
-              <p className="text-xs text-red-500">{String(form.formState.errors.customFields[field.slug]?.message)}</p>
-            )}
-          </div>
-        )
-      case 'CHECKBOX':
-        return (
-          <div key={field.id} className="space-y-2">
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                {...form.register(fieldName as any)}
-                defaultChecked={field.defaultValue === 'true'}
-                className="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-gray-300 rounded"
-              />
-              <label className="text-sm font-medium text-gray-700">
-                {field.name}
-                {field.isRequired && <span className="text-red-500 ml-1">*</span>}
-              </label>
-            </div>
-            {field.helpText && (
-              <p className="text-xs text-gray-500">{field.helpText}</p>
-            )}
-            {form.formState.errors.customFields?.[field.slug] && (
-              <p className="text-xs text-red-500">{String(form.formState.errors.customFields[field.slug]?.message)}</p>
-            )}
-          </div>
-        )
-      default:
-        return null
+    const handleFieldChange = (value: any) => {
+      form.setValue(fieldName, value)
     }
+
+    return (
+      <DynamicFieldRenderer
+        key={field.id}
+        field={field}
+        value={fieldValue}
+        onChange={handleFieldChange}
+        error={fieldError}
+      />
+    )
   }
 
   return (
