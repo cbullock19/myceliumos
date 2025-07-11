@@ -87,6 +87,17 @@ export default function DashboardPage() {
         ])
         
         const onboardingData = await onboardingResponse.json()
+        
+        // Check if dashboard API returned onboarding incomplete error
+        if (!dashboardResponse.ok) {
+          const dashboardError = await dashboardResponse.json()
+          if (dashboardResponse.status === 403 && dashboardError.error?.includes('Onboarding incomplete')) {
+            // Redirect to onboarding if not complete
+            router.push('/onboarding')
+            return
+          }
+        }
+        
         const dashboardApiData = dashboardResponse.ok ? await dashboardResponse.json() : null
         
         // Fetch real client count

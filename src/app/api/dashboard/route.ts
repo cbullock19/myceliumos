@@ -15,12 +15,26 @@ async function authenticateRequest(request: NextRequest) {
   const dbUser = await prisma.user.findUnique({
     where: { id: user.id },
     include: {
-      organization: true
+      organization: {
+        include: {
+          serviceTypes: true
+        }
+      }
     }
   })
 
-  if (!dbUser || !dbUser.organization) {
+  if (!dbUser) {
     throw new Error('User not found in database - please complete onboarding')
+  }
+
+  if (!dbUser.organization) {
+    throw new Error('User not found in database - please complete onboarding')
+  }
+
+  // Check if onboarding is complete (organization has service types)
+  const hasServiceTypes = dbUser.organization.serviceTypes.length > 0
+  if (!hasServiceTypes) {
+    throw new Error('Onboarding incomplete - please complete setup')
   }
 
   return { user, dbUser, organizationId: dbUser.organizationId }
@@ -225,6 +239,10 @@ export async function GET(request: NextRequest) {
     
     if (error instanceof Error && error.message.includes('Authentication')) {
       return NextResponse.json(createApiError(error.message), { status: 401 })
+    }
+    
+    if (error instanceof Error && error.message.includes('Onboarding incomplete')) {
+      return NextResponse.json(createApiError(error.message), { status: 403 })
     }
     
     return NextResponse.json(
