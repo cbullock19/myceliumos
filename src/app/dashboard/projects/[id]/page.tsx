@@ -75,7 +75,7 @@ interface Deliverable {
   id: string
   title: string
   description?: string
-  status: string
+  status: 'PENDING' | 'IN_PROGRESS' | 'NEEDS_REVIEW' | 'COMPLETED' | 'OVERDUE'
   priority: string
   dueDate?: string
   assignedUser?: {

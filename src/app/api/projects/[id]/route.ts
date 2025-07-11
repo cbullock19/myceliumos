@@ -75,10 +75,10 @@ async function authenticateRequest(request: NextRequest) {
 }
 
 // GET /api/projects/[id] - Fetch project details
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, context: { params: { id: string } }) {
   try {
     const { user, organization } = await authenticateRequest(request)
-    const { id: projectId } = await params
+    const { id: projectId } = context.params
     // Fetch project with milestones and deliverables
     const project = await prisma.project.findFirst({
       where: { id: projectId, organizationId: organization.id },
@@ -115,8 +115,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 // PUT /api/projects/[id] - Update project
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
+export async function PUT(request: NextRequest, context: { params: { id: string } }) {
+  const { id } = context.params
   console.log(`📋 PUT /api/projects/${id} - Updating project`)
   
   try {
@@ -213,8 +213,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 // DELETE /api/projects/[id] - Delete project
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
+export async function DELETE(request: NextRequest, context: { params: { id: string } }) {
+  const { id } = context.params
   console.log(`📋 DELETE /api/projects/${id} - Deleting project`)
   
   try {

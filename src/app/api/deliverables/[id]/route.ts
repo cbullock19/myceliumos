@@ -29,10 +29,10 @@ async function authenticateRequest(request: NextRequest) {
 // GET /api/deliverables/[id] - Get specific deliverable
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: { id: string } }
 ) {
   try {
-    const { id: deliverableId } = await params
+    const { id: deliverableId } = context.params
     console.log(`📋 GET /api/deliverables/${deliverableId} - Fetching deliverable details`)
     
     const { dbUser, organizationId } = await authenticateRequest(request)
@@ -142,10 +142,10 @@ export async function GET(
 // PUT /api/deliverables/[id] - Update deliverable
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: { id: string } }
 ) {
   try {
-    const { id: deliverableId } = await params
+    const { id: deliverableId } = context.params
     console.log(`📋 PUT /api/deliverables/${deliverableId} - Updating deliverable`)
     
     const { dbUser, organizationId } = await authenticateRequest(request)
@@ -337,10 +337,10 @@ export async function PUT(
 // DELETE /api/deliverables/[id] - Delete deliverable (admin only)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: { id: string } }
 ) {
   try {
-    const { id: deliverableId } = await params
+    const { id: deliverableId } = context.params
     console.log(`🗑️ DELETE /api/deliverables/${deliverableId} - Deleting deliverable`)
     
     const { dbUser, organizationId } = await authenticateRequest(request)

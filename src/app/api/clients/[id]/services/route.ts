@@ -38,10 +38,10 @@ async function authenticateRequest(request: NextRequest) {
 // POST /api/clients/[id]/services - Add service assignment to client
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: { id: string } }
 ) {
   try {
-    const { id: clientId } = await params
+    const { id: clientId } = context.params
     const { dbUser, organizationId } = await authenticateRequest(request)
 
     const body = await request.json()
@@ -178,10 +178,10 @@ export async function POST(
 // GET /api/clients/[id]/services - Get client's service assignments
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: { id: string } }
 ) {
   try {
-    const { id: clientId } = await params
+    const { id: clientId } = context.params
     const { organizationId } = await authenticateRequest(request)
 
     // Verify client exists and belongs to organization

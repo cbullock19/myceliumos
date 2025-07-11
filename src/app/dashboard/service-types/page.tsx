@@ -46,6 +46,7 @@ interface ServiceType {
 interface DeliverableField {
   id: string
   name: string
+  slug: string
   type: 'TEXT' | 'TEXTAREA' | 'DATE' | 'URL' | 'SELECT' | 'NUMBER' | 'CHECKBOX'
   isRequired: boolean
   sortOrder: number
