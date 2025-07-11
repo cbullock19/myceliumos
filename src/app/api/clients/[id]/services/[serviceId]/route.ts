@@ -38,10 +38,10 @@ async function authenticateRequest(request: NextRequest) {
 // PUT /api/clients/[id]/services/[serviceId] - Update service assignment status
 export async function PUT(
   request: NextRequest,
-  context: { params: { id: string; serviceId: string } }
+  { params }: { params: { id: string; serviceId: string } }
 ) {
   try {
-    const { id: clientId, serviceId } = context.params
+    const { id: clientId, serviceId } = params
     const { dbUser, organizationId } = await authenticateRequest(request)
 
     const body = await request.json()
@@ -173,10 +173,10 @@ export async function PUT(
 // DELETE /api/clients/[id]/services/[serviceId] - Remove service assignment
 export async function DELETE(
   request: NextRequest,
-  context: { params: { id: string; serviceId: string } }
+  { params }: { params: { id: string; serviceId: string } }
 ) {
   try {
-    const { id: clientId, serviceId } = context.params
+    const { id: clientId, serviceId } = params
     const { dbUser, organizationId } = await authenticateRequest(request)
 
     // Find the assignment

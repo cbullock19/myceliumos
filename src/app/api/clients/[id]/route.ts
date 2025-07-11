@@ -35,10 +35,10 @@ async function authenticateRequest(request: NextRequest) {
 // GET /api/clients/[id] - Get a specific client
 export async function GET(
   request: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = context.params
+    const { id } = params
     const { organizationId } = await authenticateRequest(request)
 
     const client = await prisma.client.findFirst({
@@ -101,10 +101,10 @@ export async function GET(
 // PUT /api/clients/[id] - Update a specific client
 export async function PUT(
   request: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = context.params
+    const { id } = params
     const { organizationId } = await authenticateRequest(request)
 
     const body = await request.json()
@@ -195,10 +195,10 @@ export async function PUT(
 // DELETE /api/clients/[id] - Delete a specific client
 export async function DELETE(
   request: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = context.params
+    const { id } = params
     const { organizationId } = await authenticateRequest(request)
 
     // Check if client exists and belongs to organization
