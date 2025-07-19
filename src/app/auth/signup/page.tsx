@@ -12,6 +12,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Eye, EyeOff, Building, User, Mail, Lock, AlertCircle, CheckCircle, Loader2, MailOpen, Clock, ArrowRight } from 'lucide-react'
+import { toast } from 'sonner'
 
 const signupSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -33,7 +34,7 @@ export default function SignupPage() {
   const [userEmail, setUserEmail] = useState('')
   const supabase = createSupabaseClient()
 
-  // Check for email confirmation success
+  // Check for email confirmation success and set up session listener
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const confirmed = urlParams.get('confirmed')
@@ -42,8 +43,29 @@ export default function SignupPage() {
       // Email was confirmed, redirect to onboarding
       console.log('✅ Email confirmation detected via URL parameter')
       router.push('/onboarding')
+      return
     }
-  }, [router])
+
+    // Set up session listener for real-time detection
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('🔔 Auth state changed:', event, session?.user?.email)
+        
+        if (event === 'SIGNED_IN' && session?.user && userEmail) {
+          const user = session.user
+          if (user.email === userEmail && user.email_confirmed_at) {
+            console.log('✅ Email confirmation detected via auth state change!')
+            await redirectToOnboarding()
+          }
+        }
+      }
+    )
+
+    // Cleanup subscription
+    return () => {
+      subscription?.unsubscribe()
+    }
+  }, [router, userEmail])
 
   const {
     register,
@@ -102,59 +124,58 @@ export default function SignupPage() {
     try {
       console.log(`🔍 Checking email confirmation (attempt ${pollingAttempts + 1})...`)
 
-      // Try to get the current session
+      // Method 1: Check current session
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
       
-      if (sessionError) {
-        console.log('Session error:', sessionError)
-        return
-      }
-
-      // If we have a session, check if the user is confirmed
-      if (session?.user) {
+      if (!sessionError && session?.user) {
         const user = session.user
         console.log('Found session for user:', user.email)
         
         if (user.email === email && user.email_confirmed_at) {
-          console.log('✅ Email confirmed! Redirecting to onboarding...')
-          
-          // Stop polling
-          if (pollingInterval) {
-            clearInterval(pollingInterval)
-            setPollingInterval(null)
-          }
-
-          // For new user registrations, always redirect to onboarding
-          router.push('/onboarding')
+          console.log('✅ Email confirmed via session! Redirecting to onboarding...')
+          await redirectToOnboarding()
           return
         }
       }
 
-      // Also try to get user directly (fallback)
+      // Method 2: Try to get user directly
       const { data: { user }, error } = await supabase.auth.getUser()
 
-      if (error) {
-        console.log('No authenticated user found, continuing to poll...')
+      if (!error && user && user.email === email && user.email_confirmed_at) {
+        console.log('✅ Email confirmed via user check! Redirecting to onboarding...')
+        await redirectToOnboarding()
         return
       }
 
-      if (user && user.email === email && user.email_confirmed_at) {
-        console.log('✅ Email confirmed! Redirecting to onboarding...')
+      // Method 3: Try to refresh session and check again
+      const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession()
+      
+      if (!refreshError && refreshedSession?.user) {
+        const refreshedUser = refreshedSession.user
+        console.log('Refreshed session for user:', refreshedUser.email)
         
-        // Stop polling
-        if (pollingInterval) {
-          clearInterval(pollingInterval)
-          setPollingInterval(null)
+        if (refreshedUser.email === email && refreshedUser.email_confirmed_at) {
+          console.log('✅ Email confirmed via refreshed session! Redirecting to onboarding...')
+          await redirectToOnboarding()
+          return
         }
-
-        // For new user registrations, always redirect to onboarding
-        router.push('/onboarding')
-      } else {
-        console.log('Email not yet confirmed, continuing to poll...')
       }
+
+      console.log('Email not yet confirmed, continuing to poll...')
     } catch (error) {
       console.error('Error checking email confirmation:', error)
     }
+  }
+
+  const redirectToOnboarding = async () => {
+    // Stop polling
+    if (pollingInterval) {
+      clearInterval(pollingInterval)
+      setPollingInterval(null)
+    }
+
+    // For new user registrations, always redirect to onboarding
+    router.push('/onboarding')
   }
 
   const onSubmit = async (data: SignupFormData) => {
@@ -226,17 +247,18 @@ export default function SignupPage() {
     if (userEmail) {
       setIsLoading(true)
       try {
-        // First try to refresh the session
-        const { data: { session }, error: refreshError } = await supabase.auth.refreshSession()
+        console.log('🔄 Manual check triggered...')
         
-        if (refreshError) {
-          console.log('Session refresh error:', refreshError)
-        } else if (session) {
-          console.log('Session refreshed successfully')
-        }
-        
-        // Then check for confirmation
+        // Try multiple methods to detect confirmation
         await checkEmailConfirmation(userEmail)
+        
+        // If we're still here, show a helpful message
+        if (waitingForConfirmation) {
+          toast.info('Still waiting for confirmation. Make sure you clicked the link in your email.')
+        }
+      } catch (error) {
+        console.error('Manual check error:', error)
+        toast.error('Unable to check confirmation status. Please try again.')
       } finally {
         setIsLoading(false)
       }
@@ -265,7 +287,7 @@ export default function SignupPage() {
             <div className="flex items-center justify-center space-x-2">
               <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
               <span className="text-sm text-gray-600">
-                Still waiting for email confirmation...
+                Waiting for email confirmation...
               </span>
             </div>
 
@@ -276,11 +298,11 @@ export default function SignupPage() {
                   <CheckCircle className="h-5 w-5 text-blue-600" />
                 </div>
                 <div className="text-sm text-blue-800">
-                  <p className="font-medium mb-1">What happens next:</p>
+                  <p className="font-medium mb-1">Next steps:</p>
                   <ul className="space-y-1 text-blue-700">
-                    <li>• Click the confirmation link in your email</li>
-                    <li>• We'll automatically detect the confirmation</li>
-                    <li>• You'll be redirected to complete your setup</li>
+                    <li>• Check your email and click the confirmation link</li>
+                    <li>• We'll automatically detect when you confirm</li>
+                    <li>• You'll be taken to complete your account setup</li>
                   </ul>
                 </div>
               </div>

@@ -18,14 +18,17 @@ export async function GET(request: NextRequest) {
       }
 
       if (user) {
+        console.log('✅ Email confirmation successful for:', user.email)
+        
         // Check if this is a new user registration
         const existingUser = await prisma.user.findUnique({
           where: { email: user.email! }
         })
 
         if (!existingUser && user.user_metadata) {
+          console.log('🆕 Creating new user and organization...')
+          
           // Create a temporary organization for the user
-          // This will be updated during onboarding
           const tempOrganization = await prisma.organization.create({
             data: {
               name: 'Temporary Organization',
@@ -54,9 +57,13 @@ export async function GET(request: NextRequest) {
             }
           })
 
-          // Redirect back to signup page with success parameter
-          return NextResponse.redirect(`${requestUrl.origin}/auth/signup?confirmed=true`)
+          console.log('✅ New user created, redirecting to onboarding...')
+          
+          // Redirect directly to onboarding for new users
+          return NextResponse.redirect(`${requestUrl.origin}/onboarding`)
         } else {
+          console.log('👤 Existing user login...')
+          
           // Existing user - check if they need to complete onboarding
           const userWithOrg = await prisma.user.findUnique({
             where: { email: user.email! },
