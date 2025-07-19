@@ -203,7 +203,9 @@ export default function SignupPage() {
         password: data.password,
         options: {
           data: {
-            name: data.name
+            name: data.name,
+            onboarding_complete: false,
+            onboarding_started_at: new Date().toISOString()
           },
           emailRedirectTo: `${window.location.origin}/auth/callback`
         }

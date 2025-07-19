@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { createSupabaseClient, getCurrentUser } from '@/lib/supabase'
+import { markOnboardingComplete } from '@/lib/onboarding'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -191,6 +192,15 @@ export default function OnboardingPage() {
       })
 
       if (response.ok) {
+        // Update Supabase metadata to mark onboarding as complete
+        try {
+          await markOnboardingComplete()
+          console.log('✅ Onboarding metadata updated successfully')
+        } catch (metadataError) {
+          console.error('⚠️ Failed to update metadata, but onboarding completed:', metadataError)
+          // Don't fail the onboarding completion for metadata errors
+        }
+        
         router.push('/dashboard?welcome=true')
       } else {
         const errorData = await response.json()

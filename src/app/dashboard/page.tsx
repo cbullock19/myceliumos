@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
 import { createSupabaseClient } from '@/lib/supabase'
 import { getClientCount } from '@/lib/clients'
+import { checkOnboardingStatus, ensureOnboardingComplete } from '@/lib/onboarding'
 import { 
   Users, 
   CheckSquare, 
@@ -77,6 +78,15 @@ export default function DashboardPage() {
         
         if (error || !user) {
           router.push('/auth/signin')
+          return
+        }
+
+        // Check onboarding status first (comprehensive check)
+        const onboardingStatus = await checkOnboardingStatus()
+        
+        if (onboardingStatus.needsOnboarding) {
+          console.log('🔄 User needs onboarding, redirecting...')
+          router.push('/onboarding')
           return
         }
 

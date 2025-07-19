@@ -102,6 +102,19 @@ export async function POST(request: NextRequest) {
         data: { status: 'ACTIVE' }
       })
 
+      // 6. Update Supabase user metadata to track onboarding completion
+      const { error: metadataError } = await supabase.auth.updateUser({
+        data: {
+          onboarding_complete: true,
+          onboarding_completed_at: new Date().toISOString()
+        }
+      })
+
+      if (metadataError) {
+        console.error('Failed to update Supabase metadata:', metadataError)
+        // Don't fail the request for metadata errors, but log them
+      }
+
       // 6. Create welcome activity log
       await tx.activityLog.create({
         data: {
