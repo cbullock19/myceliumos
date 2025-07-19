@@ -24,14 +24,12 @@ export async function GET(request: NextRequest) {
         })
 
         if (!existingUser && user.user_metadata) {
-          // Create organization and admin user for new registrations
-          const organizationSlug = generateOrganizationSlug(user.user_metadata.companyName)
-          
-          // Create organization
-          const organization = await prisma.organization.create({
+          // Create a temporary organization for the user
+          // This will be updated during onboarding
+          const tempOrganization = await prisma.organization.create({
             data: {
-              name: user.user_metadata.companyName,
-              slug: organizationSlug,
+              name: 'Temporary Organization',
+              slug: `temp-${user.id}`,
               branding: {
                 create: {
                   primaryColor: '#228B22' // Default Mycelium green
@@ -47,17 +45,17 @@ export async function GET(request: NextRequest) {
           await prisma.user.create({
             data: {
               id: user.id,
-              organizationId: organization.id,
+              organizationId: tempOrganization.id,
               email: user.email!,
               name: user.user_metadata.name,
               role: 'ADMIN',
-              status: 'ACTIVE',
+              status: 'PENDING', // Will be activated after onboarding
               emailVerified: true
             }
           })
 
-          // Redirect to onboarding for new user registrations
-          return NextResponse.redirect(`${requestUrl.origin}/onboarding`)
+          // Redirect back to signup page with success parameter
+          return NextResponse.redirect(`${requestUrl.origin}/auth/signup?confirmed=true`)
         } else {
           // Existing user - check if they need to complete onboarding
           const userWithOrg = await prisma.user.findUnique({

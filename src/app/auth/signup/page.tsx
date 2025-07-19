@@ -14,7 +14,6 @@ import { z } from 'zod'
 import { Eye, EyeOff, Building, User, Mail, Lock, AlertCircle, CheckCircle, Loader2, MailOpen, Clock, ArrowRight } from 'lucide-react'
 
 const signupSchema = z.object({
-  companyName: z.string().min(2, 'Company name must be at least 2 characters'),
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Please enter a valid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters')
@@ -33,6 +32,17 @@ export default function SignupPage() {
   const [pollingAttempts, setPollingAttempts] = useState(0)
   const [userEmail, setUserEmail] = useState('')
   const supabase = createSupabaseClient()
+
+  // Check for email confirmation success
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const confirmed = urlParams.get('confirmed')
+    
+    if (confirmed === 'true') {
+      // Email was confirmed, redirect to onboarding
+      router.push('/onboarding')
+    }
+  }, [router])
 
   const {
     register,
@@ -130,9 +140,7 @@ export default function SignupPage() {
         password: data.password,
         options: {
           data: {
-            name: data.name,
-            companyName: data.companyName,
-            organizationSlug: generateOrganizationSlug(data.companyName)
+            name: data.name
           },
           emailRedirectTo: `${window.location.origin}/auth/callback`
         }
@@ -278,7 +286,7 @@ export default function SignupPage() {
             <Building className="h-8 w-8 text-emerald-600" />
           </div>
           <CardTitle className="text-2xl font-bold text-gray-900">
-            Create Your Agency
+            Create Your Account
           </CardTitle>
           <CardDescription className="text-gray-600">
             Set up your Mycelium OS account in minutes
@@ -287,29 +295,6 @@ export default function SignupPage() {
         
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            {/* Company Name */}
-            <div>
-              <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1">
-                Company Name
-              </label>
-              <div className="relative">
-                <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  id="companyName"
-                  type="text"
-                  placeholder="Your Agency Name"
-                  className="pl-10"
-                  {...register('companyName')}
-                />
-              </div>
-              {errors.companyName && (
-                <p className="mt-1 text-sm text-red-600 flex items-center">
-                  <AlertCircle className="h-4 w-4 mr-1" />
-                  {errors.companyName.message}
-                </p>
-              )}
-            </div>
-
             {/* Name */}
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
