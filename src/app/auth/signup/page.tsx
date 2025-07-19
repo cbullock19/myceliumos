@@ -40,6 +40,7 @@ export default function SignupPage() {
     
     if (confirmed === 'true') {
       // Email was confirmed, redirect to onboarding
+      console.log('✅ Email confirmation detected via URL parameter')
       router.push('/onboarding')
     }
   }, [router])
@@ -101,7 +102,35 @@ export default function SignupPage() {
     try {
       console.log(`🔍 Checking email confirmation (attempt ${pollingAttempts + 1})...`)
 
-      // Check if user exists and is confirmed
+      // Try to get the current session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError) {
+        console.log('Session error:', sessionError)
+        return
+      }
+
+      // If we have a session, check if the user is confirmed
+      if (session?.user) {
+        const user = session.user
+        console.log('Found session for user:', user.email)
+        
+        if (user.email === email && user.email_confirmed_at) {
+          console.log('✅ Email confirmed! Redirecting to onboarding...')
+          
+          // Stop polling
+          if (pollingInterval) {
+            clearInterval(pollingInterval)
+            setPollingInterval(null)
+          }
+
+          // For new user registrations, always redirect to onboarding
+          router.push('/onboarding')
+          return
+        }
+      }
+
+      // Also try to get user directly (fallback)
       const { data: { user }, error } = await supabase.auth.getUser()
 
       if (error) {
@@ -119,8 +148,6 @@ export default function SignupPage() {
         }
 
         // For new user registrations, always redirect to onboarding
-        // The auth callback should have created the organization and user
-        // but we want to ensure they go through the onboarding flow
         router.push('/onboarding')
       } else {
         console.log('Email not yet confirmed, continuing to poll...')
@@ -197,7 +224,22 @@ export default function SignupPage() {
 
   const handleManualCheck = async () => {
     if (userEmail) {
-      await checkEmailConfirmation(userEmail)
+      setIsLoading(true)
+      try {
+        // First try to refresh the session
+        const { data: { session }, error: refreshError } = await supabase.auth.refreshSession()
+        
+        if (refreshError) {
+          console.log('Session refresh error:', refreshError)
+        } else if (session) {
+          console.log('Session refreshed successfully')
+        }
+        
+        // Then check for confirmation
+        await checkEmailConfirmation(userEmail)
+      } finally {
+        setIsLoading(false)
+      }
     }
   }
 
@@ -223,7 +265,7 @@ export default function SignupPage() {
             <div className="flex items-center justify-center space-x-2">
               <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
               <span className="text-sm text-gray-600">
-                Waiting for confirmation... (attempt {pollingAttempts + 1})
+                Still waiting for email confirmation...
               </span>
             </div>
 
@@ -253,7 +295,7 @@ export default function SignupPage() {
                 disabled={isLoading}
               >
                 <CheckCircle className="h-4 w-4 mr-2" />
-                I've confirmed my email
+                {isLoading ? 'Checking...' : 'I\'ve confirmed my email'}
               </Button>
               
               <Button
@@ -270,7 +312,8 @@ export default function SignupPage() {
             {/* Troubleshooting */}
             <div className="text-xs text-gray-500 text-center">
               <p>Don't see the email? Check your spam folder.</p>
-              <p>You can close the confirmation tab once you click the link.</p>
+              <p>You can close the confirmation tab after clicking the link.</p>
+              <p>If you've confirmed your email, click the button above to continue.</p>
             </div>
           </CardContent>
         </Card>
