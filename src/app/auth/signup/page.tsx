@@ -249,7 +249,38 @@ export default function SignupPage() {
       try {
         console.log('🔄 Manual check triggered...')
         
-        // Try multiple methods to detect confirmation
+        // First, try to get the current session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        
+        if (sessionError) {
+          console.log('Session error:', sessionError)
+        } else if (session?.user) {
+          console.log('Found session for user:', session.user.email)
+          
+          if (session.user.email === userEmail && session.user.email_confirmed_at) {
+            console.log('✅ Email confirmed via manual session check!')
+            toast.success('Email confirmed! Redirecting to onboarding...')
+            await redirectToOnboarding()
+            return
+          }
+        }
+        
+        // If no session, try to refresh and check again
+        const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession()
+        
+        if (!refreshError && refreshedSession?.user) {
+          const user = refreshedSession.user
+          console.log('Refreshed session for user:', user.email)
+          
+          if (user.email === userEmail && user.email_confirmed_at) {
+            console.log('✅ Email confirmed via refreshed session!')
+            toast.success('Email confirmed! Redirecting to onboarding...')
+            await redirectToOnboarding()
+            return
+          }
+        }
+        
+        // If still no confirmation, try the existing polling logic
         await checkEmailConfirmation(userEmail)
         
         // If we're still here, show a helpful message

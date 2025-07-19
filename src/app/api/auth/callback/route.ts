@@ -6,15 +6,25 @@ import { generateOrganizationSlug } from '@/lib/utils'
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
+  const error = requestUrl.searchParams.get('error')
+  const errorDescription = requestUrl.searchParams.get('error_description')
+
+  console.log('🔍 Auth callback received:', { code: !!code, error, errorDescription })
+
+  // Handle error cases
+  if (error) {
+    console.error('❌ Auth callback error:', error, errorDescription)
+    return NextResponse.redirect(`${requestUrl.origin}/auth/callback?error=${error}&error_description=${errorDescription}`)
+  }
 
   if (code) {
     try {
       const supabase = await createSupabaseServerClient()
-      const { data: { user }, error } = await supabase.auth.exchangeCodeForSession(code)
+      const { data: { user }, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
       
-      if (error) {
-        console.error('Auth callback error:', error)
-        return NextResponse.redirect(`${requestUrl.origin}/auth/signin?message=Authentication failed`)
+      if (exchangeError) {
+        console.error('❌ Code exchange error:', exchangeError)
+        return NextResponse.redirect(`${requestUrl.origin}/auth/callback?error=exchange_failed&error_description=${exchangeError.message}`)
       }
 
       if (user) {
@@ -86,12 +96,14 @@ export async function GET(request: NextRequest) {
         }
       }
     } catch (error) {
-      console.error('Database error in auth callback:', error)
-      return NextResponse.redirect(`${requestUrl.origin}/auth/signin?message=Setup failed`)
+      console.error('❌ Database error in auth callback:', error)
+      return NextResponse.redirect(`${requestUrl.origin}/auth/callback?error=database_error&error_description=Setup failed`)
     }
   }
 
-  return NextResponse.redirect(`${requestUrl.origin}/auth/signin`)
+  // No code provided, redirect to frontend callback for hash fragment handling
+  console.log('📝 No code provided, redirecting to frontend callback...')
+  return NextResponse.redirect(`${requestUrl.origin}/auth/callback`)
 }
 
 export async function POST(request: NextRequest) {
