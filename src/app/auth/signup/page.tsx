@@ -108,15 +108,10 @@ export default function SignupPage() {
           setPollingInterval(null)
         }
 
-        // Check if organization was created in callback
-        const response = await fetch('/api/auth/check-onboarding')
-        const result = await response.json()
-        
-        if (result.data?.needsOnboarding) {
-          router.push('/onboarding')
-        } else {
-          router.push('/dashboard')
-        }
+        // For new user registrations, always redirect to onboarding
+        // The auth callback should have created the organization and user
+        // but we want to ensure they go through the onboarding flow
+        router.push('/onboarding')
       } else {
         console.log('Email not yet confirmed, continuing to poll...')
       }
@@ -160,6 +155,7 @@ export default function SignupPage() {
         // Check if we have a session (user is authenticated)
         if (authData.session) {
           // User is authenticated, redirect to onboarding
+          // This handles cases where email confirmation is not required
           router.push('/onboarding')
         } else {
           // No session - email confirmation required

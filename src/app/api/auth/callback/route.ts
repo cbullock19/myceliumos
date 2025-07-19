@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
             }
           })
 
-          // Redirect to onboarding
+          // Redirect to onboarding for new user registrations
           return NextResponse.redirect(`${requestUrl.origin}/onboarding`)
         } else {
           // Existing user - check if they need to complete onboarding
