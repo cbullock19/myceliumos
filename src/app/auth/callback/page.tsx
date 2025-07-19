@@ -20,15 +20,17 @@ function AuthCallbackContent() {
       try {
         console.log('🔄 Processing auth callback...')
         
-        // Get the hash fragment from the URL (contains access_token)
+        // Method 1: Handle hash-based tokens (Supabase email confirmation)
         const hash = window.location.hash
         console.log('Hash fragment:', hash)
         
         if (hash) {
-          // Parse the hash to get the access token
           const params = new URLSearchParams(hash.substring(1))
           const accessToken = params.get('access_token')
           const refreshToken = params.get('refresh_token')
+          const type = params.get('type')
+          
+          console.log('Token type:', type, 'Access token present:', !!accessToken)
           
           if (accessToken) {
             console.log('✅ Found access token, setting session...')
@@ -49,6 +51,9 @@ function AuthCallbackContent() {
               console.log('✅ Session established successfully')
               toast.success('Email confirmed successfully!')
               
+              // Store onboarding state
+              localStorage.setItem('onboarding_step', '1')
+              
               // Redirect to onboarding
               router.push('/onboarding')
               return
@@ -56,17 +61,33 @@ function AuthCallbackContent() {
           }
         }
         
-        // If no hash, check for error parameters
-        const errorParam = searchParams.get('error')
-        const errorDescription = searchParams.get('error_description')
-        
-        if (errorParam) {
-          console.error('❌ Auth error:', errorParam, errorDescription)
-          setError(`Authentication failed: ${errorDescription || errorParam}`)
-          return
+        // Method 2: Handle query parameter tokens (fallback)
+        const code = searchParams.get('code')
+        if (code) {
+          console.log('✅ Found code parameter, exchanging for session...')
+          
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+          
+          if (error) {
+            console.error('❌ Code exchange error:', error)
+            setError('Failed to authenticate. Please try again.')
+            return
+          }
+          
+          if (data.session) {
+            console.log('✅ Session established via code exchange')
+            toast.success('Email confirmed successfully!')
+            
+            // Store onboarding state
+            localStorage.setItem('onboarding_step', '1')
+            
+            // Redirect to onboarding
+            router.push('/onboarding')
+            return
+          }
         }
         
-        // If we get here, try to get the current session
+        // Method 3: Check for existing session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
         if (sessionError) {
@@ -78,7 +99,27 @@ function AuthCallbackContent() {
         if (session?.user) {
           console.log('✅ Found existing session, redirecting to onboarding...')
           toast.success('Email confirmed successfully!')
+          
+          // Store onboarding state
+          localStorage.setItem('onboarding_step', '1')
+          
           router.push('/onboarding')
+          return
+        }
+        
+        // Method 4: Handle error parameters
+        const errorParam = searchParams.get('error')
+        const errorDescription = searchParams.get('error_description')
+        
+        if (errorParam) {
+          console.error('❌ Auth error:', errorParam, errorDescription)
+          
+          // Handle specific error cases
+          if (errorParam === 'otp_expired') {
+            setError('The confirmation link has expired. Please request a new one.')
+          } else {
+            setError(`Authentication failed: ${errorDescription || errorParam}`)
+          }
           return
         }
         

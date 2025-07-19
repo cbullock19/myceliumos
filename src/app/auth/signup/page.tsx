@@ -34,27 +34,42 @@ export default function SignupPage() {
   const [userEmail, setUserEmail] = useState('')
   const supabase = createSupabaseClient()
 
-  // Check for email confirmation success and set up session listener
+  // Check for active session and set up session listener
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search)
-    const confirmed = urlParams.get('confirmed')
-    
-    if (confirmed === 'true') {
-      // Email was confirmed, redirect to onboarding
-      console.log('✅ Email confirmation detected via URL parameter')
-      router.push('/onboarding')
-      return
+    const checkActiveSession = async () => {
+      try {
+        // Check if user already has an active session
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (!error && session?.user) {
+          console.log('✅ Found active session for:', session.user.email)
+          
+          // If user is confirmed, redirect to onboarding
+          if (session.user.email_confirmed_at) {
+            console.log('✅ User is confirmed, redirecting to onboarding...')
+            router.push('/onboarding')
+            return
+          }
+        }
+      } catch (error) {
+        console.error('Session check error:', error)
+      }
     }
+
+    checkActiveSession()
 
     // Set up session listener for real-time detection
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('🔔 Auth state changed:', event, session?.user?.email)
         
-        if (event === 'SIGNED_IN' && session?.user && userEmail) {
+        if (event === 'SIGNED_IN' && session?.user) {
           const user = session.user
-          if (user.email === userEmail && user.email_confirmed_at) {
+          console.log('✅ User signed in:', user.email, 'Confirmed:', user.email_confirmed_at)
+          
+          if (user.email_confirmed_at) {
             console.log('✅ Email confirmation detected via auth state change!')
+            toast.success('Email confirmed! Redirecting to onboarding...')
             await redirectToOnboarding()
           }
         }
@@ -65,7 +80,7 @@ export default function SignupPage() {
     return () => {
       subscription?.unsubscribe()
     }
-  }, [router, userEmail])
+  }, [router, supabase.auth])
 
   const {
     register,
@@ -182,7 +197,7 @@ export default function SignupPage() {
     setIsLoading(true)
 
     try {
-      // Create Supabase auth user
+      // Create Supabase auth user with proper redirect
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
@@ -244,55 +259,57 @@ export default function SignupPage() {
   }
 
   const handleManualCheck = async () => {
-    if (userEmail) {
-      setIsLoading(true)
-      try {
-        console.log('🔄 Manual check triggered...')
+    setIsLoading(true)
+    try {
+      console.log('🔄 Manual check triggered...')
+      
+      // Method 1: Check current session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (!sessionError && session?.user) {
+        console.log('Found session for user:', session.user.email)
         
-        // First, try to get the current session
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-        
-        if (sessionError) {
-          console.log('Session error:', sessionError)
-        } else if (session?.user) {
-          console.log('Found session for user:', session.user.email)
-          
-          if (session.user.email === userEmail && session.user.email_confirmed_at) {
-            console.log('✅ Email confirmed via manual session check!')
-            toast.success('Email confirmed! Redirecting to onboarding...')
-            await redirectToOnboarding()
-            return
-          }
+        if (session.user.email_confirmed_at) {
+          console.log('✅ Email confirmed via session check!')
+          toast.success('Email confirmed! Redirecting to onboarding...')
+          await redirectToOnboarding()
+          return
         }
-        
-        // If no session, try to refresh and check again
-        const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession()
-        
-        if (!refreshError && refreshedSession?.user) {
-          const user = refreshedSession.user
-          console.log('Refreshed session for user:', user.email)
-          
-          if (user.email === userEmail && user.email_confirmed_at) {
-            console.log('✅ Email confirmed via refreshed session!')
-            toast.success('Email confirmed! Redirecting to onboarding...')
-            await redirectToOnboarding()
-            return
-          }
-        }
-        
-        // If still no confirmation, try the existing polling logic
-        await checkEmailConfirmation(userEmail)
-        
-        // If we're still here, show a helpful message
-        if (waitingForConfirmation) {
-          toast.info('Still waiting for confirmation. Make sure you clicked the link in your email.')
-        }
-      } catch (error) {
-        console.error('Manual check error:', error)
-        toast.error('Unable to check confirmation status. Please try again.')
-      } finally {
-        setIsLoading(false)
       }
+      
+      // Method 2: Refresh session and check again
+      const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession()
+      
+      if (!refreshError && refreshedSession?.user) {
+        const user = refreshedSession.user
+        console.log('Refreshed session for user:', user.email)
+        
+        if (user.email_confirmed_at) {
+          console.log('✅ Email confirmed via refreshed session!')
+          toast.success('Email confirmed! Redirecting to onboarding...')
+          await redirectToOnboarding()
+          return
+        }
+      }
+      
+      // Method 3: Try to get user directly
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      
+      if (!userError && user && user.email_confirmed_at) {
+        console.log('✅ Email confirmed via user check!')
+        toast.success('Email confirmed! Redirecting to onboarding...')
+        await redirectToOnboarding()
+        return
+      }
+      
+      // If we get here, no confirmation detected
+      toast.info('No confirmation detected. Make sure you clicked the link in your email.')
+      
+    } catch (error) {
+      console.error('Manual check error:', error)
+      toast.error('Unable to check confirmation status. Please try again.')
+    } finally {
+      setIsLoading(false)
     }
   }
 
