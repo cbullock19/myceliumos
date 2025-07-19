@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -11,7 +11,7 @@ import { generateOrganizationSlug } from '@/lib/utils'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Eye, EyeOff, Building, User, Mail, Lock, AlertCircle, CheckCircle } from 'lucide-react'
+import { Eye, EyeOff, Building, User, Mail, Lock, AlertCircle, CheckCircle, Loader2, MailOpen, Clock, ArrowRight } from 'lucide-react'
 
 const signupSchema = z.object({
   companyName: z.string().min(2, 'Company name must be at least 2 characters'),
@@ -28,16 +28,102 @@ export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
+  const [waitingForConfirmation, setWaitingForConfirmation] = useState(false)
+  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null)
+  const [pollingAttempts, setPollingAttempts] = useState(0)
+  const [userEmail, setUserEmail] = useState('')
   const supabase = createSupabaseClient()
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-    setError
+    setError,
+    getValues
   } = useForm<SignupFormData>({
     resolver: zodResolver(signupSchema)
   })
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval)
+      }
+    }
+  }, [pollingInterval])
+
+  // Smart polling function
+  const startEmailConfirmationPolling = (email: string) => {
+    setUserEmail(email)
+    setWaitingForConfirmation(true)
+    setPollingAttempts(0)
+
+    // Initial check after 2 seconds
+    const initialCheck = setTimeout(async () => {
+      await checkEmailConfirmation(email)
+    }, 2000)
+
+    // Start polling with exponential backoff
+    const interval = setInterval(async () => {
+      const attempts = pollingAttempts + 1
+      setPollingAttempts(attempts)
+
+      // Exponential backoff: 3s, 5s, 8s, 12s, 15s, then 15s intervals
+      const backoffDelays = [3000, 5000, 8000, 12000, 15000]
+      const delay = attempts <= backoffDelays.length ? backoffDelays[attempts - 1] : 15000
+
+      // Stop polling after 5 minutes (20 attempts)
+      if (attempts >= 20) {
+        clearInterval(interval)
+        setPollingInterval(null)
+        console.log('Polling stopped after 5 minutes')
+        return
+      }
+
+      await checkEmailConfirmation(email)
+    }, 3000) // Start with 3-second intervals
+
+    setPollingInterval(interval)
+  }
+
+  const checkEmailConfirmation = async (email: string) => {
+    try {
+      console.log(`🔍 Checking email confirmation (attempt ${pollingAttempts + 1})...`)
+
+      // Check if user exists and is confirmed
+      const { data: { user }, error } = await supabase.auth.getUser()
+
+      if (error) {
+        console.log('No authenticated user found, continuing to poll...')
+        return
+      }
+
+      if (user && user.email === email && user.email_confirmed_at) {
+        console.log('✅ Email confirmed! Redirecting to onboarding...')
+        
+        // Stop polling
+        if (pollingInterval) {
+          clearInterval(pollingInterval)
+          setPollingInterval(null)
+        }
+
+        // Check if organization was created in callback
+        const response = await fetch('/api/auth/check-onboarding')
+        const result = await response.json()
+        
+        if (result.data?.needsOnboarding) {
+          router.push('/onboarding')
+        } else {
+          router.push('/dashboard')
+        }
+      } else {
+        console.log('Email not yet confirmed, continuing to poll...')
+      }
+    } catch (error) {
+      console.error('Error checking email confirmation:', error)
+    }
+  }
 
   const onSubmit = async (data: SignupFormData) => {
     setIsLoading(true)
@@ -77,8 +163,7 @@ export default function SignupPage() {
           router.push('/onboarding')
         } else {
           // No session - email confirmation required
-          setIsSuccess(true)
-          setSuccessMessage('Account created successfully! Please check your email and click the confirmation link to activate your account. You can then sign in to continue.')
+          startEmailConfirmationPolling(data.email)
         }
       }
     } catch (error) {
@@ -89,158 +174,273 @@ export default function SignupPage() {
     }
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-blue-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
-      {/* Background decoration */}
-      <div className="absolute inset-0 bg-gradient-to-br from-emerald-400/10 via-transparent to-blue-400/10" />
-      <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-300/20 to-transparent rounded-full blur-3xl transform translate-x-32 -translate-y-32" />
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-blue-300/20 to-transparent rounded-full blur-3xl transform -translate-x-32 translate-y-32" />
-      
-      <div className="relative z-10 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-emerald-600 via-green-600 to-emerald-700 bg-clip-text text-transparent">
-            Mycelium OS
-          </h1>
-          <p className="mt-3 text-lg text-gray-600 font-medium">The Operations Platform for Creative Agencies</p>
-        </div>
-      </div>
+  const handleResendEmail = async () => {
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: userEmail
+      })
 
-      <div className="relative z-10 mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <Card className="backdrop-blur-sm bg-white/95 border-0 shadow-2xl shadow-emerald-100/50">
-          <CardHeader className="text-center pb-6">
-            <CardTitle className="text-3xl font-bold text-gray-900">Start your free trial</CardTitle>
-            <CardDescription className="text-gray-600 text-lg">
-              Get your agency operational in 10 minutes
+      if (error) {
+        console.error('Resend error:', error)
+      } else {
+        console.log('Resend email sent successfully')
+      }
+    } catch (error) {
+      console.error('Resend error:', error)
+    }
+  }
+
+  const handleManualCheck = async () => {
+    if (userEmail) {
+      await checkEmailConfirmation(userEmail)
+    }
+  }
+
+  // Email confirmation waiting screen
+  if (waitingForConfirmation) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-blue-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="mx-auto w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
+              <MailOpen className="h-8 w-8 text-emerald-600" />
+            </div>
+            <CardTitle className="text-2xl font-bold text-gray-900">
+              Check Your Email
+            </CardTitle>
+            <CardDescription className="text-gray-600">
+              We've sent a confirmation link to <strong>{userEmail}</strong>
             </CardDescription>
           </CardHeader>
-          <CardContent className="px-8 pb-8">
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-              <Input
-                {...register('companyName')}
-                label="Company Name"
-                placeholder="Acme Creative Agency"
-                leftIcon={<Building className="h-5 w-5 text-gray-400" />}
-                error={errors.companyName?.message}
-                disabled={isLoading}
-                size="lg"
-              />
+          
+          <CardContent className="space-y-6">
+            {/* Progress indicator */}
+            <div className="flex items-center justify-center space-x-2">
+              <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
+              <span className="text-sm text-gray-600">
+                Waiting for confirmation... (attempt {pollingAttempts + 1})
+              </span>
+            </div>
 
-              <Input
-                {...register('name')}
-                label="Your Name"
-                placeholder="John Smith"
-                leftIcon={<User className="h-5 w-5 text-gray-400" />}
-                error={errors.name?.message}
-                disabled={isLoading}
-                size="lg"
-              />
-
-              <Input
-                {...register('email')}
-                type="email"
-                label="Email Address"
-                placeholder="john@acmecreative.com"
-                autoComplete="email"
-                leftIcon={<Mail className="h-5 w-5 text-gray-400" />}
-                error={errors.email?.message}
-                disabled={isLoading}
-                size="lg"
-              />
-
-              <Input
-                {...register('password')}
-                type={showPassword ? 'text' : 'password'}
-                label="Password"
-                placeholder="••••••••"
-                autoComplete="new-password"
-                leftIcon={<Lock className="h-5 w-5 text-gray-400" />}
-                rightIcon={
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </button>
-                }
-                error={errors.password?.message}
-                disabled={isLoading}
-                size="lg"
-              />
-
-              {errors.root && (
-                <div className="text-sm text-red-600 bg-red-50 p-4 rounded-lg border border-red-200">
-                  <div className="flex">
-                    <AlertCircle className="h-5 w-5 text-red-400" />
-                    <div className="ml-3">
-                      <p>{errors.root.message}</p>
-                    </div>
-                  </div>
+            {/* Instructions */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start space-x-3">
+                <div className="flex-shrink-0">
+                  <CheckCircle className="h-5 w-5 text-blue-600" />
                 </div>
-              )}
-
-              {isSuccess && (
-                <div className="text-sm text-green-600 bg-green-50 p-4 rounded-lg border border-green-200">
-                  <div className="flex">
-                    <CheckCircle className="h-5 w-5 text-green-400" />
-                    <div className="ml-3">
-                      <p>{successMessage}</p>
-                    </div>
-                  </div>
+                <div className="text-sm text-blue-800">
+                  <p className="font-medium mb-1">What happens next:</p>
+                  <ul className="space-y-1 text-blue-700">
+                    <li>• Click the confirmation link in your email</li>
+                    <li>• We'll automatically detect the confirmation</li>
+                    <li>• You'll be redirected to complete your setup</li>
+                  </ul>
                 </div>
-              )}
+              </div>
+            </div>
 
+            {/* Action buttons */}
+            <div className="space-y-3">
               <Button
-                type="submit"
-                loading={isLoading}
-                fullWidth
-                disabled={isSuccess}
-                className="mt-8 h-12 text-lg font-semibold bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white border-0 shadow-lg shadow-emerald-200/50 hover:shadow-emerald-300/50 transition-all duration-200"
+                onClick={handleManualCheck}
+                variant="outline"
+                className="w-full"
+                disabled={isLoading}
               >
-                {isSuccess ? 'Account Created!' : 'Create Account'}
+                <CheckCircle className="h-4 w-4 mr-2" />
+                I've confirmed my email
               </Button>
-            </form>
+              
+              <Button
+                onClick={handleResendEmail}
+                variant="ghost"
+                className="w-full text-sm"
+                disabled={isLoading}
+              >
+                <Mail className="h-4 w-4 mr-2" />
+                Resend confirmation email
+              </Button>
+            </div>
 
-            <div className="mt-8">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-200" />
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-4 bg-white text-gray-500 font-medium">
-                    Already have an account?
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-6 text-center">
-                <Link
-                  href="/auth/signin"
-                  className="inline-flex items-center justify-center px-6 py-3 border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 font-semibold rounded-lg transition-colors duration-200"
-                >
-                  Sign in instead
-                </Link>
-              </div>
+            {/* Troubleshooting */}
+            <div className="text-xs text-gray-500 text-center">
+              <p>Don't see the email? Check your spam folder.</p>
+              <p>You can close the confirmation tab once you click the link.</p>
             </div>
           </CardContent>
         </Card>
-
-        <div className="mt-8 text-center text-xs text-gray-500">
-          <div className="mb-4">
-            By signing up, you agree to our{' '}
-            <a href="#" className="text-emerald-600 hover:text-emerald-700 font-medium">
-              Terms of Service
-            </a>{' '}
-            and{' '}
-            <a href="#" className="text-emerald-600 hover:text-emerald-700 font-medium">
-              Privacy Policy
-            </a>
-          </div>
-          <Link href="/" className="text-emerald-600 hover:text-emerald-700 font-medium">
-            ← Back to homepage
-          </Link>
-        </div>
       </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-blue-50 flex items-center justify-center p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <div className="mx-auto w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
+            <Building className="h-8 w-8 text-emerald-600" />
+          </div>
+          <CardTitle className="text-2xl font-bold text-gray-900">
+            Create Your Agency
+          </CardTitle>
+          <CardDescription className="text-gray-600">
+            Set up your Mycelium OS account in minutes
+          </CardDescription>
+        </CardHeader>
+        
+        <CardContent>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            {/* Company Name */}
+            <div>
+              <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1">
+                Company Name
+              </label>
+              <div className="relative">
+                <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  id="companyName"
+                  type="text"
+                  placeholder="Your Agency Name"
+                  className="pl-10"
+                  {...register('companyName')}
+                />
+              </div>
+              {errors.companyName && (
+                <p className="mt-1 text-sm text-red-600 flex items-center">
+                  <AlertCircle className="h-4 w-4 mr-1" />
+                  {errors.companyName.message}
+                </p>
+              )}
+            </div>
+
+            {/* Name */}
+            <div>
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                Your Name
+              </label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="Your Full Name"
+                  className="pl-10"
+                  {...register('name')}
+                />
+              </div>
+              {errors.name && (
+                <p className="mt-1 text-sm text-red-600 flex items-center">
+                  <AlertCircle className="h-4 w-4 mr-1" />
+                  {errors.name.message}
+                </p>
+              )}
+            </div>
+
+            {/* Email */}
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                Email Address
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="your@email.com"
+                  className="pl-10"
+                  {...register('email')}
+                />
+              </div>
+              {errors.email && (
+                <p className="mt-1 text-sm text-red-600 flex items-center">
+                  <AlertCircle className="h-4 w-4 mr-1" />
+                  {errors.email.message}
+                </p>
+              )}
+            </div>
+
+            {/* Password */}
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Create a strong password"
+                  className="pl-10 pr-10"
+                  {...register('password')}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              {errors.password && (
+                <p className="mt-1 text-sm text-red-600 flex items-center">
+                  <AlertCircle className="h-4 w-4 mr-1" />
+                  {errors.password.message}
+                </p>
+              )}
+            </div>
+
+            {/* Root Error */}
+            {errors.root && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-sm text-red-600 flex items-center">
+                  <AlertCircle className="h-4 w-4 mr-2" />
+                  {errors.root.message}
+                </p>
+              </div>
+            )}
+
+            {/* Submit Button */}
+            <Button
+              type="submit"
+              className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Creating Account...
+                </>
+              ) : (
+                <>
+                  <ArrowRight className="h-4 w-4 mr-2" />
+                  Create Account
+                </>
+              )}
+            </Button>
+
+            {/* Success Message */}
+            {isSuccess && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <p className="text-sm text-green-600 flex items-center">
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  {successMessage}
+                </p>
+              </div>
+            )}
+          </form>
+
+          {/* Sign In Link */}
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600">
+              Already have an account?{' '}
+              <Link href="/auth/signin" className="text-emerald-600 hover:text-emerald-700 font-medium">
+                Sign in
+              </Link>
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 } 
