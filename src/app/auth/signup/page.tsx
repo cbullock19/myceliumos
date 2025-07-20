@@ -13,6 +13,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Eye, EyeOff, Building, User, Mail, Lock, AlertCircle, CheckCircle, Loader2, MailOpen, Clock, ArrowRight } from 'lucide-react'
 import { toast } from 'sonner'
+import { ErrorBoundary } from '@/components/ui/error-boundary'
 
 const signupSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -22,7 +23,7 @@ const signupSchema = z.object({
 
 type SignupFormData = z.infer<typeof signupSchema>
 
-export default function SignupPage() {
+function SignupPageContent() {
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -32,6 +33,7 @@ export default function SignupPage() {
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null)
   const [pollingAttempts, setPollingAttempts] = useState(0)
   const [userEmail, setUserEmail] = useState('')
+  const [isInitializing, setIsInitializing] = useState(true)
   const supabase = createSupabaseClient()
 
   // Check for active session and set up session listener
@@ -53,6 +55,8 @@ export default function SignupPage() {
         }
       } catch (error) {
         console.error('Session check error:', error)
+      } finally {
+        setIsInitializing(false)
       }
     }
 
@@ -61,17 +65,21 @@ export default function SignupPage() {
     // Set up session listener for real-time detection
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('🔔 Auth state changed:', event, session?.user?.email)
-        
-        if (event === 'SIGNED_IN' && session?.user) {
-          const user = session.user
-          console.log('✅ User signed in:', user.email, 'Confirmed:', user.email_confirmed_at)
+        try {
+          console.log('🔔 Auth state changed:', event, session?.user?.email)
           
-          if (user.email_confirmed_at) {
-            console.log('✅ Email confirmation detected via auth state change!')
-            toast.success('Email confirmed! Redirecting to onboarding...')
-            await redirectToOnboarding()
+          if (event === 'SIGNED_IN' && session?.user) {
+            const user = session.user
+            console.log('✅ User signed in:', user.email, 'Confirmed:', user.email_confirmed_at)
+            
+            if (user.email_confirmed_at) {
+              console.log('✅ Email confirmation detected via auth state change!')
+              toast.success('Email confirmed! Redirecting to onboarding...')
+              await redirectToOnboarding()
+            }
           }
+        } catch (error) {
+          console.error('Auth state change error:', error)
         }
       }
     )
@@ -393,6 +401,18 @@ export default function SignupPage() {
     )
   }
 
+  // Show loading state while initializing
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-blue-50 flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading signup...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-blue-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
@@ -539,4 +559,12 @@ export default function SignupPage() {
       </Card>
     </div>
   )
-} 
+}
+
+export default function SignupPage() {
+  return (
+    <ErrorBoundary>
+      <SignupPageContent />
+    </ErrorBoundary>
+  )
+}
