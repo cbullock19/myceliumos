@@ -61,18 +61,46 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         let organizationName = user.user_metadata?.companyName || user.user_metadata?.organizationName || 'Your Organization'
         let organizationSlug = user.user_metadata?.organizationSlug || 'your-organization'
         
+        console.log('🔍 Layout - Initial org name from metadata:', organizationName)
+        
         try {
           const response = await fetch('/api/auth/check-onboarding')
           if (response.ok) {
             const data = await response.json()
+            console.log('🔍 Layout - API response:', data)
             if (data.data?.organization?.name) {
               organizationName = data.data.organization.name
               organizationSlug = data.data.organization.slug
+              console.log('🔍 Layout - Updated org name from API:', organizationName)
+            } else {
+              console.log('🔍 Layout - No organization data in API response')
             }
+          } else {
+            console.log('🔍 Layout - API response not ok:', response.status)
           }
         } catch (apiError) {
           console.warn('Failed to fetch organization data from API:', apiError)
         }
+
+        // Try dashboard API as fallback if check-onboarding didn't work
+        if (organizationName === 'Your Organization') {
+          try {
+            const dashboardResponse = await fetch('/api/dashboard')
+            if (dashboardResponse.ok) {
+              const dashboardData = await dashboardResponse.json()
+              console.log('🔍 Layout - Dashboard API response:', dashboardData)
+              if (dashboardData.data?.organization?.name) {
+                organizationName = dashboardData.data.organization.name
+                organizationSlug = dashboardData.data.organization.slug
+                console.log('🔍 Layout - Updated org name from dashboard API:', organizationName)
+              }
+            }
+          } catch (dashboardError) {
+            console.warn('Failed to fetch organization data from dashboard API:', dashboardError)
+          }
+        }
+
+        console.log('🔍 Layout - Final org name being set:', organizationName)
 
         setUserData({
           id: user.id,
