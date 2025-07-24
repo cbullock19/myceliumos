@@ -13,7 +13,10 @@ import {
   AlertTriangle,
   Calendar,
   User,
-  FolderOpen
+  FolderOpen,
+  TrendingUp,
+  CheckCircle,
+  XCircle
 } from 'lucide-react'
 
 // Types
@@ -22,17 +25,25 @@ interface Deliverable {
   title: string
   status: string
   dueDate?: string
+  completedAt?: string
   serviceType: {
     name: string
+    color: string
   }
   assignedUser?: {
     name: string
+  }
+  _count?: {
+    comments: number
   }
 }
 
 interface DashboardData {
   recentDeliverables: Deliverable[]
   pendingApprovals: Deliverable[]
+  todaysDeliverables: Deliverable[]
+  overdueDeliverables: Deliverable[]
+  upcomingDeliverables: Deliverable[]
   fileAccessSummary: {
     totalFiles: number
     recentDownloads: number
@@ -44,72 +55,50 @@ interface DashboardData {
     overdue: number
     pendingApprovals: number
   }
+  client: {
+    id: string
+    name: string
+    slug: string
+  }
+  organization: {
+    id: string
+    name: string
+    branding?: {
+      primaryColor: string
+    }
+  }
+  user: {
+    id: string
+    name: string
+    email: string
+    role: string
+    permissions: {
+      canApprove: boolean
+      canDownload: boolean
+      canComment: boolean
+    }
+  }
 }
 
 export default function ClientPortalDashboardPage() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const loadDashboardData = async () => {
       try {
-        // TODO: Replace with actual API call
-        // const response = await fetch('/api/client-portal/dashboard')
-        // const data = await response.json()
-        // setDashboardData(data.data)
-
-        // Mock data for now
-        setDashboardData({
-          recentDeliverables: [
-            {
-              id: '1',
-              title: 'Website Homepage Design',
-              status: 'COMPLETED',
-              dueDate: '2024-01-15',
-              serviceType: { name: 'Web Design' },
-              assignedUser: { name: 'Sarah Johnson' }
-            },
-            {
-              id: '2',
-              title: 'Social Media Content Calendar',
-              status: 'IN_PROGRESS',
-              dueDate: '2024-01-20',
-              serviceType: { name: 'Social Media' },
-              assignedUser: { name: 'Mike Chen' }
-            },
-            {
-              id: '3',
-              title: 'Brand Identity Guidelines',
-              status: 'PENDING',
-              dueDate: '2024-01-25',
-              serviceType: { name: 'Branding' },
-              assignedUser: { name: 'Alex Rodriguez' }
-            }
-          ],
-          pendingApprovals: [
-            {
-              id: '4',
-              title: 'Logo Design Final Files',
-              status: 'NEEDS_REVIEW',
-              dueDate: '2024-01-18',
-              serviceType: { name: 'Branding' },
-              assignedUser: { name: 'Alex Rodriguez' }
-            }
-          ],
-          fileAccessSummary: {
-            totalFiles: 47,
-            recentDownloads: 12,
-            pendingUploads: 3
-          },
-          stats: {
-            totalDeliverables: 23,
-            completedThisMonth: 8,
-            overdue: 1,
-            pendingApprovals: 1
-          }
-        })
+        const response = await fetch('/api/client-portal/dashboard')
+        
+        if (!response.ok) {
+          throw new Error('Failed to load dashboard data')
+        }
+        
+        const result = await response.json()
+        setDashboardData(result.data)
       } catch (error) {
-        console.error('Error loading dashboard data:', error)
+        console.error('Dashboard load error:', error)
+        setError('Failed to load dashboard data')
       } finally {
         setIsLoading(false)
       }
@@ -119,83 +108,118 @@ export default function ClientPortalDashboardPage() {
   }, [])
 
   const getStatusBadge = (status: string) => {
-    const variants = {
-      'COMPLETED': { color: 'bg-green-100 text-green-700 border-green-200', icon: '✅' },
-      'IN_PROGRESS': { color: 'bg-blue-100 text-blue-700 border-blue-200', icon: '🔄' },
-      'PENDING': { color: 'bg-gray-100 text-gray-700 border-gray-200', icon: '⏳' },
-      'NEEDS_REVIEW': { color: 'bg-yellow-100 text-yellow-700 border-yellow-200', icon: '👀' },
-      'OVERDUE': { color: 'bg-red-100 text-red-700 border-red-200', icon: '⚠️' }
+    const statusConfig = {
+      'PENDING': { color: 'bg-yellow-100 text-yellow-800', icon: Clock },
+      'IN_PROGRESS': { color: 'bg-blue-100 text-blue-800', icon: TrendingUp },
+      'NEEDS_REVIEW': { color: 'bg-orange-100 text-orange-800', icon: Eye },
+      'COMPLETED': { color: 'bg-green-100 text-green-800', icon: CheckCircle },
+      'OVERDUE': { color: 'bg-red-100 text-red-800', icon: XCircle }
     }
-    
-    const variant = variants[status as keyof typeof variants] || variants.PENDING
-    
+
+    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.PENDING
+    const Icon = config.icon
+
     return (
-      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${variant.color}`}>
-        <span className="mr-1">{variant.icon}</span>
+      <Badge className={config.color}>
+        <Icon className="h-3 w-3 mr-1" />
         {status.replace('_', ' ')}
-      </span>
+      </Badge>
     )
   }
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'No due date'
-    return new Date(dateString).toLocaleDateString()
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    })
+  }
+
+  const formatRelativeDate = (dateString?: string) => {
+    if (!dateString) return ''
+    
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffTime = date.getTime() - now.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    
+    if (diffDays < 0) {
+      return `${Math.abs(diffDays)} days overdue`
+    } else if (diffDays === 0) {
+      return 'Due today'
+    } else if (diffDays === 1) {
+      return 'Due tomorrow'
+    } else {
+      return `Due in ${diffDays} days`
+    }
   }
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading your dashboard...</p>
+        </div>
       </div>
     )
   }
 
-  if (!dashboardData) {
+  if (error || !dashboardData) {
     return (
-      <div className="text-center py-12">
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">Unable to load dashboard</h2>
-        <p className="text-gray-600">Please try refreshing the page or contact your project team.</p>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <p className="text-gray-600">{error || 'Failed to load dashboard'}</p>
+          <Button 
+            onClick={() => window.location.reload()} 
+            className="mt-4"
+          >
+            Try Again
+          </Button>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Welcome Header */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">
-          Welcome to your Client Portal
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">
+          Welcome back, {dashboardData.user.name}!
         </h1>
-        <p className="text-gray-600">
-          Track your project progress, review deliverables, and access files all in one place.
+        <p className="mt-2 text-gray-600">
+          Here's what's happening with your projects at {dashboardData.organization.name}
         </p>
       </div>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Total Deliverables</p>
+            <div className="flex items-center">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <CheckSquare className="h-6 w-6 text-blue-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Deliverables</p>
                 <p className="text-2xl font-bold text-gray-900">{dashboardData.stats.totalDeliverables}</p>
               </div>
-              <div className="p-2 bg-emerald-100 rounded-lg">
-                <CheckSquare className="h-6 w-6 text-emerald-600" />
-              </div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Completed This Month</p>
-                <p className="text-2xl font-bold text-green-600">{dashboardData.stats.completedThisMonth}</p>
-              </div>
+            <div className="flex items-center">
               <div className="p-2 bg-green-100 rounded-lg">
-                <Calendar className="h-6 w-6 text-green-600" />
+                <CheckCircle className="h-6 w-6 text-green-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Completed This Month</p>
+                <p className="text-2xl font-bold text-gray-900">{dashboardData.stats.completedThisMonth}</p>
               </div>
             </div>
           </CardContent>
@@ -203,34 +227,35 @@ export default function ClientPortalDashboardPage() {
 
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Pending Approvals</p>
-                <p className="text-2xl font-bold text-yellow-600">{dashboardData.stats.pendingApprovals}</p>
-              </div>
-              <div className="p-2 bg-yellow-100 rounded-lg">
-                <Eye className="h-6 w-6 text-yellow-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Overdue</p>
-                <p className="text-2xl font-bold text-red-600">{dashboardData.stats.overdue}</p>
-              </div>
+            <div className="flex items-center">
               <div className="p-2 bg-red-100 rounded-lg">
                 <AlertTriangle className="h-6 w-6 text-red-600" />
               </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Overdue</p>
+                <p className="text-2xl font-bold text-gray-900">{dashboardData.stats.overdue}</p>
+              </div>
             </div>
           </CardContent>
         </Card>
+
+        {dashboardData.user.permissions.canApprove && (
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-orange-100 rounded-lg">
+                  <Eye className="h-6 w-6 text-orange-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Pending Approval</p>
+                  <p className="text-2xl font-bold text-gray-900">{dashboardData.stats.pendingApprovals}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
-      {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Recent Deliverables */}
         <Card>
@@ -241,162 +266,160 @@ export default function ClientPortalDashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {dashboardData.recentDeliverables.map((deliverable) => (
-                <div
-                  key={deliverable.id}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <div className="flex-1">
-                    <h3 className="font-medium text-gray-900">{deliverable.title}</h3>
-                    <div className="flex items-center space-x-4 mt-1 text-sm text-gray-600">
-                      <span>{deliverable.serviceType.name}</span>
-                      <span>•</span>
-                      <span>Due: {formatDate(deliverable.dueDate)}</span>
-                      {deliverable.assignedUser && (
-                        <>
-                          <span>•</span>
-                          <span className="flex items-center">
-                            <User className="h-3 w-3 mr-1" />
-                            {deliverable.assignedUser.name}
+            {dashboardData.recentDeliverables.length > 0 ? (
+              <div className="space-y-4">
+                {dashboardData.recentDeliverables.slice(0, 5).map((deliverable) => (
+                  <div key={deliverable.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-gray-900">{deliverable.title}</h4>
+                      <div className="flex items-center mt-1 space-x-2">
+                        {getStatusBadge(deliverable.status)}
+                        <span className="text-sm text-gray-500">
+                          {deliverable.serviceType.name}
+                        </span>
+                        {deliverable.assignedUser && (
+                          <span className="text-sm text-gray-500">
+                            • {deliverable.assignedUser.name}
                           </span>
-                        </>
-                      )}
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-gray-600">{formatDate(deliverable.dueDate)}</p>
+                      <p className="text-xs text-gray-500">{formatRelativeDate(deliverable.dueDate)}</p>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    {getStatusBadge(deliverable.status)}
-                    <Button variant="ghost" size="sm">
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-              
-              <div className="text-center pt-4">
-                <Button variant="outline" size="sm">
-                  View All Deliverables
-                </Button>
+                ))}
               </div>
-            </div>
+            ) : (
+              <p className="text-gray-500 text-center py-8">No recent deliverables</p>
+            )}
           </CardContent>
         </Card>
 
         {/* Pending Approvals */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Eye className="h-5 w-5 mr-2" />
-              Pending Approvals
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {dashboardData.pendingApprovals.length > 0 ? (
-                dashboardData.pendingApprovals.map((deliverable) => (
-                  <div
-                    key={deliverable.id}
-                    className="flex items-center justify-between p-4 bg-yellow-50 border border-yellow-200 rounded-lg"
-                  >
+        {dashboardData.user.permissions.canApprove && dashboardData.pendingApprovals.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Eye className="h-5 w-5 mr-2" />
+                Pending Approvals
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {dashboardData.pendingApprovals.slice(0, 5).map((deliverable) => (
+                  <div key={deliverable.id} className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
                     <div className="flex-1">
-                      <h3 className="font-medium text-gray-900">{deliverable.title}</h3>
-                      <div className="flex items-center space-x-4 mt-1 text-sm text-gray-600">
-                        <span>{deliverable.serviceType.name}</span>
-                        <span>•</span>
-                        <span>Due: {formatDate(deliverable.dueDate)}</span>
-                        {deliverable.assignedUser && (
-                          <>
-                            <span>•</span>
-                            <span className="flex items-center">
-                              <User className="h-3 w-3 mr-1" />
-                              {deliverable.assignedUser.name}
-                            </span>
-                          </>
-                        )}
+                      <h4 className="font-medium text-gray-900">{deliverable.title}</h4>
+                      <div className="flex items-center mt-1 space-x-2">
+                        {getStatusBadge(deliverable.status)}
+                        <span className="text-sm text-gray-500">
+                          {deliverable.serviceType.name}
+                        </span>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      {getStatusBadge(deliverable.status)}
-                      <Button size="sm" className="bg-yellow-600 hover:bg-yellow-700">
-                        Review
-                      </Button>
+                    <Button size="sm" variant="outline">
+                      Review
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Today's Deliverables */}
+        {dashboardData.todaysDeliverables.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Calendar className="h-5 w-5 mr-2" />
+                Due Today
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {dashboardData.todaysDeliverables.map((deliverable) => (
+                  <div key={deliverable.id} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-gray-900">{deliverable.title}</h4>
+                      <div className="flex items-center mt-1 space-x-2">
+                        {getStatusBadge(deliverable.status)}
+                        <span className="text-sm text-gray-500">
+                          {deliverable.serviceType.name}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-blue-600">Due Today</p>
                     </div>
                   </div>
-                ))
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <CheckSquare className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                  <p>No pending approvals</p>
-                  <p className="text-sm">You're all caught up!</p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-        {/* File Access Summary */}
-        <Card className="lg:col-span-2">
+        {/* Overdue Deliverables */}
+        {dashboardData.overdueDeliverables.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <AlertTriangle className="h-5 w-5 mr-2" />
+                Overdue
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {dashboardData.overdueDeliverables.slice(0, 5).map((deliverable) => (
+                  <div key={deliverable.id} className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-gray-900">{deliverable.title}</h4>
+                      <div className="flex items-center mt-1 space-x-2">
+                        {getStatusBadge(deliverable.status)}
+                        <span className="text-sm text-gray-500">
+                          {deliverable.serviceType.name}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-red-600">
+                        {formatRelativeDate(deliverable.dueDate)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* Quick Actions */}
+      <div className="mt-8">
+        <Card>
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <Download className="h-5 w-5 mr-2" />
-              File Access Summary
-            </CardTitle>
+            <CardTitle>Quick Actions</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <FolderOpen className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-                <p className="text-2xl font-bold text-blue-600">{dashboardData.fileAccessSummary.totalFiles}</p>
-                <p className="text-sm text-gray-600">Total Files</p>
-              </div>
-              
-              <div className="text-center p-4 bg-green-50 rounded-lg">
-                <Download className="h-8 w-8 text-green-600 mx-auto mb-2" />
-                <p className="text-2xl font-bold text-green-600">{dashboardData.fileAccessSummary.recentDownloads}</p>
-                <p className="text-sm text-gray-600">Recent Downloads</p>
-              </div>
-              
-              <div className="text-center p-4 bg-yellow-50 rounded-lg">
-                <Clock className="h-8 w-8 text-yellow-600 mx-auto mb-2" />
-                <p className="text-2xl font-bold text-yellow-600">{dashboardData.fileAccessSummary.pendingUploads}</p>
-                <p className="text-sm text-gray-600">Pending Uploads</p>
-              </div>
-            </div>
-            
-            <div className="mt-6 text-center">
-              <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                Browse All Files
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Button variant="outline" className="h-16 flex flex-col items-center justify-center">
+                <FolderOpen className="h-6 w-6 mb-2" />
+                View All Projects
+              </Button>
+              <Button variant="outline" className="h-16 flex flex-col items-center justify-center">
+                <CheckSquare className="h-6 w-6 mb-2" />
+                View All Deliverables
+              </Button>
+              <Button variant="outline" className="h-16 flex flex-col items-center justify-center">
+                <Download className="h-6 w-6 mb-2" />
+                Access Files
               </Button>
             </div>
           </CardContent>
         </Card>
       </div>
-
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Button variant="outline" className="h-16 flex-col space-y-2">
-              <CheckSquare className="h-6 w-6" />
-              <span>View All Deliverables</span>
-            </Button>
-            
-            <Button variant="outline" className="h-16 flex-col space-y-2">
-              <Download className="h-6 w-6" />
-              <span>Download Files</span>
-            </Button>
-            
-            <Button variant="outline" className="h-16 flex-col space-y-2">
-              <FileText className="h-6 w-6" />
-              <span>Contact Team</span>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 } 
