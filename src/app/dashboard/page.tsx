@@ -215,7 +215,7 @@ export default function DashboardPage() {
               <div>
                 <h1 className="text-2xl font-bold">🎉 Welcome to Mycelium OS!</h1>
                 <p className="mt-2 text-brand-light">
-                  Your agency workspace is ready. Start by adding your first client or creating a deliverable.
+                  Your {dashboardData.organization.name} workspace is ready. Start by adding your first client or creating a deliverable.
                 </p>
               </div>
               <Button 
@@ -256,7 +256,7 @@ export default function DashboardPage() {
               {currentGreeting}, {getFirstName(dashboardData.user.name)}!
             </h1>
             <p className="text-gray-600">
-              Here's what's happening with your agency today.
+              Here's what's happening with {dashboardData.organization.name} today.
             </p>
           </div>
           <Button 
