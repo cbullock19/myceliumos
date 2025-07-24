@@ -1,5 +1,4 @@
 import { createSupabaseClient } from './supabase'
-import { prisma } from './prisma'
 
 export interface OnboardingStatus {
   needsOnboarding: boolean
@@ -18,8 +17,8 @@ export interface OnboardingStatus {
 }
 
 /**
- * Comprehensive onboarding status check that works across all entry points
- * This ensures users complete onboarding regardless of how they arrive
+ * Client-side onboarding status check using only Supabase metadata
+ * Database operations are handled via API routes
  */
 export async function checkOnboardingStatus(): Promise<OnboardingStatus> {
   try {
@@ -38,75 +37,63 @@ export async function checkOnboardingStatus(): Promise<OnboardingStatus> {
       }
     }
 
-    // Check Supabase metadata first (fastest check)
+    // Check Supabase metadata (fastest check)
     const onboardingComplete = user.user_metadata?.onboarding_complete === true
     
     if (onboardingComplete) {
       // User has completed onboarding according to Supabase metadata
-      // Still verify with database for consistency
-      const dbUser = await prisma.user.findUnique({
-        where: { id: user.id },
-        include: { organization: true }
-      })
-
-      if (dbUser?.status === 'ACTIVE' && dbUser.organization) {
-        return {
-          needsOnboarding: false,
-          hasOrganization: true,
-          onboardingCompleted: true,
-          user: {
-            id: user.id,
-            email: user.email,
-            name: dbUser.name
-          },
-          organization: {
-            id: dbUser.organization.id,
-            name: dbUser.organization.name,
-            slug: dbUser.organization.slug
-          }
+      return {
+        needsOnboarding: false,
+        hasOrganization: true,
+        onboardingCompleted: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.user_metadata?.name || null
+        },
+        organization: {
+          id: user.user_metadata?.organizationId || '',
+          name: user.user_metadata?.organizationName || '',
+          slug: user.user_metadata?.organizationSlug || ''
         }
       }
     }
 
-    // Check database for more detailed status
-    const dbUser = await prisma.user.findUnique({
-      where: { id: user.id },
-      include: { organization: true }
-    })
-
-    if (!dbUser) {
-      return {
-        needsOnboarding: true,
-        hasOrganization: false,
-        onboardingCompleted: false,
-        user: {
-          id: user.id,
-          email: user.email,
-          name: null
-        },
-        organization: null
+    // If onboarding is not complete, check with API for detailed status
+    try {
+      const response = await fetch('/api/auth/check-onboarding')
+      const result = await response.json()
+      
+      if (response.ok && result.data) {
+        const { needsOnboarding, needsOrganizationOnboarding, userStatus, organization } = result.data
+        
+        return {
+          needsOnboarding: needsOnboarding || needsOrganizationOnboarding,
+          hasOrganization: !!organization,
+          onboardingCompleted: userStatus === 'ACTIVE',
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.user_metadata?.name || null
+          },
+          organization: organization || null
+        }
       }
+    } catch (apiError) {
+      console.warn('API check failed, falling back to metadata:', apiError)
     }
 
-    // Determine onboarding status
-    const hasOrganization = !!dbUser.organization
-    const isActiveUser = dbUser.status === 'ACTIVE'
-    const needsOnboarding = !hasOrganization || !isActiveUser
-
+    // Fallback: assume onboarding is needed
     return {
-      needsOnboarding,
-      hasOrganization,
-      onboardingCompleted: isActiveUser,
+      needsOnboarding: true,
+      hasOrganization: false,
+      onboardingCompleted: false,
       user: {
         id: user.id,
         email: user.email,
-        name: dbUser.name
+        name: user.user_metadata?.name || null
       },
-      organization: hasOrganization ? {
-        id: dbUser.organization!.id,
-        name: dbUser.organization!.name,
-        slug: dbUser.organization!.slug
-      } : null
+      organization: null
     }
 
   } catch (error) {
