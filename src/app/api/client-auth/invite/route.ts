@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { createSupabaseServerClient } from '@/lib/supabase'
 import jwt from 'jsonwebtoken'
 import { Resend } from 'resend'
-import { createApiResponse, createApiError } from '@/lib/utils'
+import { createApiResponse, createApiError, getProductionSafeBaseUrl } from '@/lib/utils'
 
 // Initialize Resend
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -111,7 +111,8 @@ export async function POST(request: NextRequest) {
     })
 
     // Send invitation email
-    const setupUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/client-portal/setup-password?token=${invitationToken}`
+    const baseUrl = getProductionSafeBaseUrl()
+    const setupUrl = `${baseUrl}/client-portal/setup-password?token=${invitationToken}`
 
     const emailContent = {
       from: process.env.FROM_EMAIL || 'hello@myceliumos.app',
