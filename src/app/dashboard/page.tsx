@@ -110,6 +110,11 @@ export default function DashboardPage() {
         
         const dashboardApiData = dashboardResponse.ok ? await dashboardResponse.json() : null
         
+        // Debug logging to see what data we're getting
+        console.log('🔍 Dashboard API Data:', dashboardApiData)
+        console.log('🔍 Onboarding Data:', onboardingData)
+        console.log('🔍 User Metadata:', user.user_metadata)
+        
         // Fetch real client count
         const totalClients = await getClientCount()
         
@@ -133,8 +138,8 @@ export default function DashboardPage() {
             role: onboardingData.user?.role || 'ADMIN'
           },
           organization: {
-            name: onboardingData.organization?.name || user.user_metadata?.companyName || dashboardApiData?.data?.organization?.name || 'Your Organization',
-            slug: onboardingData.organization?.slug || 'your-organization'
+            name: dashboardApiData?.data?.organization?.name || onboardingData.organization?.name || user.user_metadata?.companyName || 'Your Organization',
+            slug: dashboardApiData?.data?.organization?.slug || onboardingData.organization?.slug || 'your-organization'
           },
           stats,
           recentActivity: dashboardApiData?.data?.recentActivity || [],

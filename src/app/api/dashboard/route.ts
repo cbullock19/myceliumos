@@ -222,6 +222,11 @@ export async function GET(request: NextRequest) {
       },
       recentActivity,
       teamStats,
+      organization: {
+        id: dbUser.organization!.id,
+        name: dbUser.organization!.name,
+        slug: dbUser.organization!.slug
+      },
       user: {
         id: dbUser.id,
         name: dbUser.name,
