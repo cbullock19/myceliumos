@@ -1,17 +1,28 @@
 'use client'
 
-import React, { useState, Suspense } from 'react'
+import React, { useState, Suspense, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Eye, EyeOff, Lock, AlertCircle, CheckCircle } from 'lucide-react'
+import { Eye, EyeOff, Lock, AlertCircle, CheckCircle, User } from 'lucide-react'
 import { toast } from 'sonner'
 
-const passwordSetupSchema = z.object({
+const invitationSetupSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  password: z.string()
+    .min(8, 'Password must be at least 8 characters')
+    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain at least one uppercase letter, one lowercase letter, and one number'),
+  confirmPassword: z.string().min(1, 'Please confirm your password')
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"]
+})
+
+const passwordUpdateSchema = z.object({
   currentPassword: z.string().min(1, 'Current password is required'),
   newPassword: z.string()
     .min(8, 'Password must be at least 8 characters')
@@ -22,16 +33,61 @@ const passwordSetupSchema = z.object({
   path: ["confirmPassword"]
 })
 
-type PasswordSetupFormData = z.infer<typeof passwordSetupSchema>
+type InvitationSetupFormData = z.infer<typeof invitationSetupSchema>
+type PasswordUpdateFormData = z.infer<typeof passwordUpdateSchema>
+
+interface InvitationData {
+  email: string
+  name: string
+  role: string
+  clientName: string
+  organizationName: string
+}
 
 // Separate component that uses useSearchParams
 function SetupPasswordForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
-  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [invitationData, setInvitationData] = useState<InvitationData | null>(null)
+  const [isValidToken, setIsValidToken] = useState(false)
+  const [isTokenExpired, setIsTokenExpired] = useState(false)
+
+  const token = searchParams.get('token')
+
+  useEffect(() => {
+    if (token) {
+      validateInvitationToken()
+    }
+  }, [token])
+
+  const validateInvitationToken = async () => {
+    try {
+      const response = await fetch('/api/client-auth/validate-invitation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ token })
+      })
+
+      const result = await response.json()
+
+      if (response.ok) {
+        setInvitationData(result.data)
+        setIsValidToken(true)
+      } else if (result.error === 'TOKEN_EXPIRED') {
+        setIsTokenExpired(true)
+      } else {
+        setIsValidToken(false)
+      }
+    } catch (error) {
+      console.error('Token validation error:', error)
+      setIsValidToken(false)
+    }
+  }
 
   const {
     register,
@@ -39,13 +95,16 @@ function SetupPasswordForm() {
     formState: { errors },
     setError,
     watch
-  } = useForm<PasswordSetupFormData>({
-    resolver: zodResolver(passwordSetupSchema)
+  } = useForm<InvitationSetupFormData>({
+    resolver: zodResolver(invitationSetupSchema),
+    defaultValues: {
+      name: invitationData?.name || ''
+    }
   })
 
-  const newPassword = watch('newPassword')
+  const password = watch('password')
 
-  const onSubmit = async (data: PasswordSetupFormData) => {
+  const onSubmit = async (data: InvitationSetupFormData) => {
     setIsLoading(true)
 
     try {
@@ -55,18 +114,19 @@ function SetupPasswordForm() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          currentPassword: data.currentPassword,
-          newPassword: data.newPassword
+          token,
+          name: data.name,
+          password: data.password
         })
       })
 
       const result = await response.json()
 
       if (!response.ok) {
-        if (result.error === 'INVALID_CURRENT_PASSWORD') {
-          setError('currentPassword', { message: 'Current password is incorrect' })
+        if (result.error === 'INVALID_TOKEN') {
+          setError('root', { message: 'Invalid or expired invitation link' })
         } else if (result.error === 'PASSWORD_TOO_WEAK') {
-          setError('newPassword', { message: 'Password does not meet security requirements' })
+          setError('password', { message: 'Password does not meet security requirements' })
         } else {
           setError('root', { message: result.error || 'An unexpected error occurred' })
         }
@@ -74,14 +134,68 @@ function SetupPasswordForm() {
       }
 
       // Success - redirect to dashboard
-      toast.success('Password set successfully!')
+      toast.success('Account setup complete! Welcome to your client portal.')
       router.push('/client-portal/dashboard')
     } catch (error) {
-      console.error('Password setup error:', error)
+      console.error('Account setup error:', error)
       setError('root', { message: 'An unexpected error occurred. Please try again.' })
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (isTokenExpired) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+        <div className="sm:mx-auto sm:w-full sm:max-w-md">
+          <Card>
+            <CardHeader className="text-center">
+              <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                <AlertCircle className="h-8 w-8 text-red-600" />
+              </div>
+              <CardTitle className="text-2xl font-bold text-gray-900">
+                Invitation Expired
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-center">
+              <p className="text-gray-600 mb-6">
+                This invitation link has expired. Please contact your project team for a new invitation.
+              </p>
+              <Button 
+                onClick={() => router.push('/client-portal/login')}
+                className="w-full"
+              >
+                Go to Login
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isValidToken) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+        <div className="sm:mx-auto sm:w-full sm:max-w-md">
+          <Card>
+            <CardHeader className="text-center">
+              <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                <Lock className="h-8 w-8 text-gray-600" />
+              </div>
+              <CardTitle className="text-2xl font-bold text-gray-900">
+                Validating Invitation
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-center">
+              <p className="text-gray-600">
+                Please wait while we validate your invitation...
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -90,155 +204,111 @@ function SetupPasswordForm() {
         <div className="text-center mb-8">
           <div className="mx-auto h-12 w-32 bg-gradient-to-r from-emerald-600 to-emerald-700 rounded flex items-center justify-center">
             <span className="text-white font-semibold text-lg">
-              Client Portal
+              {invitationData?.organizationName || 'Client Portal'}
             </span>
           </div>
           <h2 className="mt-6 text-3xl font-bold text-gray-900">
-            Set Your Password
+            Set Up Your Account
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            Please set a secure password for your account
+            Welcome to {invitationData?.clientName}! Please complete your account setup.
           </p>
         </div>
-      </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <Card className="bg-white shadow-xl">
-          <CardContent className="px-8 py-8">
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-              {/* Error message */}
-              {errors.root && (
-                <div className="flex items-center space-x-2 p-3 bg-red-50 border border-red-200 rounded-md">
-                  <AlertCircle className="h-5 w-5 text-red-500" />
-                  <p className="text-sm text-red-700">{errors.root.message}</p>
+        <Card>
+          <CardContent className="p-6">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              {/* Name Field */}
+              <div>
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                  Full Name
+                </label>
+                <div className="relative">
+                  <Input
+                    id="name"
+                    type="text"
+                    {...register('name')}
+                    className={`pl-10 ${errors.name ? 'border-red-500' : ''}`}
+                    placeholder="Enter your full name"
+                  />
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 </div>
-              )}
-
-              {/* Current password field */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">
-                  Current Password
-                </label>
-                <Input
-                  {...register('currentPassword')}
-                  type={showCurrentPassword ? 'text' : 'password'}
-                  placeholder="Enter your current password"
-                  leftIcon={<Lock className="h-5 w-5 text-gray-400" />}
-                  rightIcon={
-                    <button
-                      type="button"
-                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                      className="text-gray-400 hover:text-gray-600 transition-colors"
-                    >
-                      {showCurrentPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                    </button>
-                  }
-                  error={errors.currentPassword?.message}
-                  disabled={isLoading}
-                  size="lg"
-                />
-              </div>
-
-              {/* New password field */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">
-                  New Password
-                </label>
-                <Input
-                  {...register('newPassword')}
-                  type={showNewPassword ? 'text' : 'password'}
-                  placeholder="Create a new password"
-                  leftIcon={<Lock className="h-5 w-5 text-gray-400" />}
-                  rightIcon={
-                    <button
-                      type="button"
-                      onClick={() => setShowNewPassword(!showNewPassword)}
-                      className="text-gray-400 hover:text-gray-600 transition-colors"
-                    >
-                      {showNewPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                    </button>
-                  }
-                  error={errors.newPassword?.message}
-                  disabled={isLoading}
-                  size="lg"
-                />
-                
-                {/* Password requirements */}
-                {newPassword && (
-                  <div className="mt-2 space-y-1">
-                    <p className="text-xs font-medium text-gray-600">Password requirements:</p>
-                    <div className="space-y-1">
-                      <div className={`flex items-center space-x-2 text-xs ${
-                        newPassword.length >= 8 ? 'text-green-600' : 'text-gray-500'
-                      }`}>
-                        {newPassword.length >= 8 ? <CheckCircle className="h-3 w-3" /> : <div className="h-3 w-3 rounded-full border border-gray-300" />}
-                        <span>At least 8 characters</span>
-                      </div>
-                      <div className={`flex items-center space-x-2 text-xs ${
-                        /[a-z]/.test(newPassword) ? 'text-green-600' : 'text-gray-500'
-                      }`}>
-                        {/[a-z]/.test(newPassword) ? <CheckCircle className="h-3 w-3" /> : <div className="h-3 w-3 rounded-full border border-gray-300" />}
-                        <span>One lowercase letter</span>
-                      </div>
-                      <div className={`flex items-center space-x-2 text-xs ${
-                        /[A-Z]/.test(newPassword) ? 'text-green-600' : 'text-gray-500'
-                      }`}>
-                        {/[A-Z]/.test(newPassword) ? <CheckCircle className="h-3 w-3" /> : <div className="h-3 w-3 rounded-full border border-gray-300" />}
-                        <span>One uppercase letter</span>
-                      </div>
-                      <div className={`flex items-center space-x-2 text-xs ${
-                        /\d/.test(newPassword) ? 'text-green-600' : 'text-gray-500'
-                      }`}>
-                        {/\d/.test(newPassword) ? <CheckCircle className="h-3 w-3" /> : <div className="h-3 w-3 rounded-full border border-gray-300" />}
-                        <span>One number</span>
-                      </div>
-                    </div>
-                  </div>
+                {errors.name && (
+                  <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
                 )}
               </div>
 
-              {/* Confirm password field */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">
-                  Confirm New Password
+              {/* Password Field */}
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                  Password
                 </label>
-                <Input
-                  {...register('confirmPassword')}
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  placeholder="Confirm your new password"
-                  leftIcon={<Lock className="h-5 w-5 text-gray-400" />}
-                  rightIcon={
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="text-gray-400 hover:text-gray-600 transition-colors"
-                    >
-                      {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                    </button>
-                  }
-                  error={errors.confirmPassword?.message}
-                  disabled={isLoading}
-                  size="lg"
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    {...register('password')}
+                    className={`pl-10 pr-10 ${errors.password ? 'border-red-500' : ''}`}
+                    placeholder="Create a secure password"
+                  />
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                {errors.password && (
+                  <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
+                )}
               </div>
 
-              {/* Submit button */}
+              {/* Confirm Password Field */}
+              <div>
+                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
+                  Confirm Password
+                </label>
+                <div className="relative">
+                  <Input
+                    id="confirmPassword"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    {...register('confirmPassword')}
+                    className={`pl-10 pr-10 ${errors.confirmPassword ? 'border-red-500' : ''}`}
+                    placeholder="Confirm your password"
+                  />
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                {errors.confirmPassword && (
+                  <p className="mt-1 text-sm text-red-600">{errors.confirmPassword.message}</p>
+                )}
+              </div>
+
+              {/* Error Message */}
+              {errors.root && (
+                <div className="flex items-center space-x-2 text-sm text-red-600">
+                  <AlertCircle className="h-4 w-4" />
+                  <span>{errors.root.message}</span>
+                </div>
+              )}
+
+              {/* Submit Button */}
               <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-emerald-600 hover:bg-emerald-700"
-                size="lg"
+                className="w-full"
               >
-                {isLoading ? 'Setting Password...' : 'Set Password'}
+                {isLoading ? 'Setting up account...' : 'Complete Setup'}
               </Button>
             </form>
-
-            {/* Help text */}
-            <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600">
-                Need help? Contact your project team
-              </p>
-            </div>
           </CardContent>
         </Card>
       </div>
