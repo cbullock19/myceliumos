@@ -226,4 +226,4 @@ This project is proprietary software. All rights reserved. See the [LICENSE](LIC
 
 ---
 
-**Built with ❤️ for creative agencies worldwide** 
+**Built with ❤️ for creative agencies worldwide** # Vercel deployment trigger
