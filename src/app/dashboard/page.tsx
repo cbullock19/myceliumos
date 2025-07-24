@@ -133,8 +133,8 @@ export default function DashboardPage() {
             role: onboardingData.user?.role || 'ADMIN'
           },
           organization: {
-            name: onboardingData.organization?.name || user.user_metadata?.companyName || 'Your Agency',
-            slug: onboardingData.organization?.slug || 'your-agency'
+            name: onboardingData.organization?.name || user.user_metadata?.companyName || dashboardApiData?.data?.organization?.name || 'Your Organization',
+            slug: onboardingData.organization?.slug || 'your-organization'
           },
           stats,
           recentActivity: dashboardApiData?.data?.recentActivity || [],

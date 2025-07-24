@@ -62,8 +62,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           email: user.email || '',
           name: user.user_metadata?.name || 'User',
           organization: {
-            name: user.user_metadata?.companyName || 'Your Agency',
-            slug: 'your-agency'
+            name: user.user_metadata?.companyName || user.user_metadata?.organizationName || 'Your Organization',
+            slug: user.user_metadata?.organizationSlug || 'your-organization'
           }
         })
       } catch (error) {

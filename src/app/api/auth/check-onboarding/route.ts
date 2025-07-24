@@ -53,8 +53,15 @@ export async function GET(request: NextRequest) {
         user: {
           id: user.id,
           email: user.email,
-          name: userProfile.name
-        }
+          name: userProfile.name,
+          role: userProfile.role,
+          status: userProfile.status
+        },
+        organization: hasOrganization ? {
+          id: userProfile.organization!.id,
+          name: userProfile.organization!.name,
+          slug: userProfile.organization!.slug
+        } : null
       }
     })
 
