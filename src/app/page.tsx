@@ -1,7 +1,8 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -93,6 +94,28 @@ const benefits = [
 ]
 
 export default function HomePage() {
+  const router = useRouter()
+
+  // Check for auth tokens in URL and redirect to callback if found
+  useEffect(() => {
+    const hash = window.location.hash
+    const searchParams = new URLSearchParams(window.location.search)
+    
+    // Check for auth tokens in hash (Supabase email confirmation)
+    if (hash && (hash.includes('access_token') || hash.includes('refresh_token'))) {
+      console.log('🔍 Found auth tokens in hash, redirecting to callback...')
+      router.push('/auth/callback' + hash)
+      return
+    }
+    
+    // Check for auth tokens in search params
+    if (searchParams.get('access_token') || searchParams.get('refresh_token') || searchParams.get('code')) {
+      console.log('🔍 Found auth tokens in search params, redirecting to callback...')
+      router.push('/auth/callback' + window.location.search)
+      return
+    }
+  }, [router])
+
   return (
     <div className="min-h-screen bg-white">
       {/* Navigation */}

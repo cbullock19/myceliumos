@@ -13,16 +13,30 @@ function AuthCallbackContent() {
   const searchParams = useSearchParams()
   const [isProcessing, setIsProcessing] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [debugInfo, setDebugInfo] = useState<string[]>([])
   const supabase = createSupabaseClient()
+
+  const addDebugInfo = (info: string) => {
+    console.log(`🔍 DEBUG: ${info}`)
+    setDebugInfo(prev => [...prev, `${new Date().toISOString()}: ${info}`])
+  }
 
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        console.log('🔄 Processing auth callback...')
+        addDebugInfo('🔄 Starting auth callback processing...')
+        addDebugInfo(`📍 Current URL: ${window.location.href}`)
+        addDebugInfo(`📍 Pathname: ${window.location.pathname}`)
+        addDebugInfo(`📍 Search: ${window.location.search}`)
+        addDebugInfo(`📍 Hash: ${window.location.hash}`)
+        
+        // Log all search params
+        const allParams = Array.from(searchParams.entries())
+        addDebugInfo(`🔍 Search params: ${JSON.stringify(allParams)}`)
         
         // Method 1: Handle hash-based tokens (Supabase email confirmation)
         const hash = window.location.hash
-        console.log('Hash fragment:', hash)
+        addDebugInfo(`🔍 Hash fragment: ${hash}`)
         
         if (hash) {
           const params = new URLSearchParams(hash.substring(1))
@@ -30,10 +44,12 @@ function AuthCallbackContent() {
           const refreshToken = params.get('refresh_token')
           const type = params.get('type')
           
-          console.log('Token type:', type, 'Access token present:', !!accessToken)
+          addDebugInfo(`🔍 Token type: ${type}`)
+          addDebugInfo(`🔍 Access token present: ${!!accessToken}`)
+          addDebugInfo(`🔍 Refresh token present: ${!!refreshToken}`)
           
           if (accessToken) {
-            console.log('✅ Found access token, setting session...')
+            addDebugInfo('✅ Found access token, setting session...')
             
             // Set the session with the tokens
             const { data, error } = await supabase.auth.setSession({
@@ -42,13 +58,15 @@ function AuthCallbackContent() {
             })
             
             if (error) {
-              console.error('❌ Error setting session:', error)
+              addDebugInfo(`❌ Error setting session: ${error.message}`)
               setError('Failed to authenticate. Please try again.')
               return
             }
             
             if (data.session) {
-              console.log('✅ Session established successfully')
+              addDebugInfo('✅ Session established successfully')
+              addDebugInfo(`🔍 User email: ${data.session.user.email}`)
+              addDebugInfo(`🔍 User confirmed: ${data.session.user.email_confirmed_at}`)
               toast.success('Email confirmed successfully!')
               
               // Set initial onboarding metadata
@@ -61,17 +79,18 @@ function AuthCallbackContent() {
                 })
                 
                 if (metadataError) {
-                  console.error('⚠️ Failed to set initial metadata:', metadataError)
+                  addDebugInfo(`⚠️ Failed to set initial metadata: ${metadataError.message}`)
                 } else {
-                  console.log('✅ Initial onboarding metadata set')
+                  addDebugInfo('✅ Initial onboarding metadata set')
                 }
               } catch (error) {
-                console.error('⚠️ Metadata update failed:', error)
+                addDebugInfo(`⚠️ Metadata update failed: ${error}`)
               }
               
               // Store onboarding state
               localStorage.setItem('onboarding_step', '1')
               
+              addDebugInfo('🔄 Redirecting to onboarding...')
               // Redirect to onboarding
               router.push('/onboarding')
               return
@@ -81,19 +100,22 @@ function AuthCallbackContent() {
         
         // Method 2: Handle query parameter tokens (fallback)
         const code = searchParams.get('code')
+        addDebugInfo(`🔍 Code parameter: ${code ? 'present' : 'not found'}`)
+        
         if (code) {
-          console.log('✅ Found code parameter, exchanging for session...')
+          addDebugInfo('✅ Found code parameter, exchanging for session...')
           
           const { data, error } = await supabase.auth.exchangeCodeForSession(code)
           
           if (error) {
-            console.error('❌ Code exchange error:', error)
+            addDebugInfo(`❌ Code exchange error: ${error.message}`)
             setError('Failed to authenticate. Please try again.')
             return
           }
           
           if (data.session) {
-            console.log('✅ Session established via code exchange')
+            addDebugInfo('✅ Session established via code exchange')
+            addDebugInfo(`🔍 User email: ${data.session.user.email}`)
             toast.success('Email confirmed successfully!')
             
             // Set initial onboarding metadata
@@ -106,17 +128,18 @@ function AuthCallbackContent() {
               })
               
               if (metadataError) {
-                console.error('⚠️ Failed to set initial metadata:', metadataError)
+                addDebugInfo(`⚠️ Failed to set initial metadata: ${metadataError.message}`)
               } else {
-                console.log('✅ Initial onboarding metadata set')
+                addDebugInfo('✅ Initial onboarding metadata set')
               }
             } catch (error) {
-              console.error('⚠️ Metadata update failed:', error)
+              addDebugInfo(`⚠️ Metadata update failed: ${error}`)
             }
             
             // Store onboarding state
             localStorage.setItem('onboarding_step', '1')
             
+            addDebugInfo('🔄 Redirecting to onboarding...')
             // Redirect to onboarding
             router.push('/onboarding')
             return
@@ -124,16 +147,19 @@ function AuthCallbackContent() {
         }
         
         // Method 3: Check for existing session
+        addDebugInfo('🔍 Checking for existing session...')
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
         if (sessionError) {
-          console.error('❌ Session error:', sessionError)
+          addDebugInfo(`❌ Session error: ${sessionError.message}`)
           setError('Unable to verify your session. Please try again.')
           return
         }
         
         if (session?.user) {
-          console.log('✅ Found existing session, redirecting to onboarding...')
+          addDebugInfo('✅ Found existing session')
+          addDebugInfo(`🔍 User email: ${session.user.email}`)
+          addDebugInfo(`🔍 User confirmed: ${session.user.email_confirmed_at}`)
           toast.success('Email confirmed successfully!')
           
           // Set initial onboarding metadata if not already set
@@ -147,18 +173,19 @@ function AuthCallbackContent() {
               })
               
               if (metadataError) {
-                console.error('⚠️ Failed to set initial metadata:', metadataError)
+                addDebugInfo(`⚠️ Failed to set initial metadata: ${metadataError.message}`)
               } else {
-                console.log('✅ Initial onboarding metadata set')
+                addDebugInfo('✅ Initial onboarding metadata set')
               }
             } catch (error) {
-              console.error('⚠️ Metadata update failed:', error)
+              addDebugInfo(`⚠️ Metadata update failed: ${error}`)
             }
           }
           
           // Store onboarding state
           localStorage.setItem('onboarding_step', '1')
           
+          addDebugInfo('🔄 Redirecting to onboarding...')
           router.push('/onboarding')
           return
         }
@@ -168,7 +195,8 @@ function AuthCallbackContent() {
         const errorDescription = searchParams.get('error_description')
         
         if (errorParam) {
-          console.error('❌ Auth error:', errorParam, errorDescription)
+          addDebugInfo(`❌ Auth error: ${errorParam}`)
+          addDebugInfo(`❌ Error description: ${errorDescription}`)
           
           // Handle specific error cases
           if (errorParam === 'otp_expired') {
@@ -180,10 +208,13 @@ function AuthCallbackContent() {
         }
         
         // If we get here, something went wrong
+        addDebugInfo('❌ No authentication method worked')
+        addDebugInfo('❌ No tokens found in URL')
+        addDebugInfo('❌ No existing session found')
         setError('Unable to complete authentication. Please try signing up again.')
         
       } catch (error) {
-        console.error('❌ Callback processing error:', error)
+        addDebugInfo(`❌ Callback processing error: ${error}`)
         setError('An unexpected error occurred. Please try again.')
       } finally {
         setIsProcessing(false)
@@ -209,6 +240,15 @@ function AuthCallbackContent() {
             <p className="text-gray-600">
               Please wait while we verify your email confirmation...
             </p>
+            {/* Debug info */}
+            {debugInfo.length > 0 && (
+              <div className="mt-4 p-3 bg-gray-100 rounded text-xs text-left max-h-32 overflow-y-auto">
+                <p className="font-semibold mb-2">Debug Info:</p>
+                {debugInfo.map((info, index) => (
+                  <div key={index} className="text-gray-600">{info}</div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -231,6 +271,15 @@ function AuthCallbackContent() {
             <p className="text-gray-600 text-center">
               {error}
             </p>
+            {/* Debug info */}
+            {debugInfo.length > 0 && (
+              <div className="p-3 bg-gray-100 rounded text-xs text-left max-h-32 overflow-y-auto">
+                <p className="font-semibold mb-2">Debug Info:</p>
+                {debugInfo.map((info, index) => (
+                  <div key={index} className="text-gray-600">{info}</div>
+                ))}
+              </div>
+            )}
             <div className="space-y-3">
               <Button 
                 onClick={() => router.push('/auth/signup')}

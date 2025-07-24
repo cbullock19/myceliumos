@@ -33,7 +33,15 @@ export async function middleware(req: NextRequest) {
   // Define onboarding routes
   const onboardingRoutes = ['/onboarding']
 
+  // Define auth callback routes (always allow)
+  const authCallbackRoutes = ['/auth/callback']
+
   const pathname = req.nextUrl.pathname
+
+  // Always allow auth callback routes
+  if (authCallbackRoutes.some(route => pathname.startsWith(route))) {
+    return res
+  }
 
   // If user hasn't completed onboarding and is trying to access protected routes
   if (!onboardingComplete && protectedRoutes.some(route => pathname.startsWith(route))) {
