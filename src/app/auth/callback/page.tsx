@@ -98,55 +98,7 @@ function AuthCallbackContent() {
           }
         }
         
-        // Method 2: Handle query parameter tokens (fallback)
-        const code = searchParams.get('code')
-        addDebugInfo(`🔍 Code parameter: ${code ? 'present' : 'not found'}`)
-        
-        if (code) {
-          addDebugInfo('✅ Found code parameter, exchanging for session...')
-          
-          const { data, error } = await supabase.auth.exchangeCodeForSession(code)
-          
-          if (error) {
-            addDebugInfo(`❌ Code exchange error: ${error.message}`)
-            setError('Failed to authenticate. Please try again.')
-            return
-          }
-          
-          if (data.session) {
-            addDebugInfo('✅ Session established via code exchange')
-            addDebugInfo(`🔍 User email: ${data.session.user.email}`)
-            toast.success('Email confirmed successfully!')
-            
-            // Set initial onboarding metadata
-            try {
-              const { error: metadataError } = await supabase.auth.updateUser({
-                data: {
-                  onboarding_complete: false,
-                  onboarding_started_at: new Date().toISOString()
-                }
-              })
-              
-              if (metadataError) {
-                addDebugInfo(`⚠️ Failed to set initial metadata: ${metadataError.message}`)
-              } else {
-                addDebugInfo('✅ Initial onboarding metadata set')
-              }
-            } catch (error) {
-              addDebugInfo(`⚠️ Metadata update failed: ${error}`)
-            }
-            
-            // Store onboarding state
-            localStorage.setItem('onboarding_step', '1')
-            
-            addDebugInfo('🔄 Redirecting to onboarding...')
-            // Redirect to onboarding
-            router.push('/onboarding')
-            return
-          }
-        }
-        
-        // Method 3: Check for existing session
+        // Method 2: Check for existing session (primary method for code-based auth)
         addDebugInfo('🔍 Checking for existing session...')
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
@@ -160,6 +112,7 @@ function AuthCallbackContent() {
           addDebugInfo('✅ Found existing session')
           addDebugInfo(`🔍 User email: ${session.user.email}`)
           addDebugInfo(`🔍 User confirmed: ${session.user.email_confirmed_at}`)
+          addDebugInfo(`🔍 User metadata: ${JSON.stringify(session.user.user_metadata)}`)
           toast.success('Email confirmed successfully!')
           
           // Set initial onboarding metadata if not already set
@@ -190,7 +143,7 @@ function AuthCallbackContent() {
           return
         }
         
-        // Method 4: Handle error parameters
+        // Method 3: Handle error parameters
         const errorParam = searchParams.get('error')
         const errorDescription = searchParams.get('error_description')
         
