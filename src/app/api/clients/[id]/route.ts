@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createSupabaseClient } from '@/lib/supabase'
+import { createSupabaseServerClient } from '@/lib/supabase'
 import { prisma } from '@/lib/prisma'
 import { createApiResponse, createApiError } from '@/lib/utils'
 
@@ -12,23 +12,27 @@ function generateSlug(name: string): string {
 
 // Helper function to authenticate requests
 async function authenticateRequest(request: NextRequest) {
-  const authHeader = request.headers.get('Authorization')
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    throw new Error('Missing or invalid Authorization header')
-  }
-
-  const token = authHeader.split(' ')[1]
-  const supabase = createSupabaseClient()
+  const supabase = await createSupabaseServerClient()
   
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
 
   if (authError || !user) {
-    throw new Error('Invalid token or unauthorized')
+    throw new Error('Not authenticated')
+  }
+
+  // Get user profile to get organization ID
+  const userProfile = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { organizationId: true }
+  })
+
+  if (!userProfile?.organizationId) {
+    throw new Error('User not associated with an organization')
   }
 
   return {
     user,
-    organizationId: user.user_metadata?.organizationId || user.id
+    organizationId: userProfile.organizationId
   }
 }
 
@@ -146,8 +150,8 @@ export async function PUT(
 
     // Log activity if status changed
     if (status && status !== existingClient.status) {
-      const supabase = createSupabaseClient()
-      const { data: { user } } = await supabase.auth.getUser(request.headers.get('Authorization')?.split(' ')[1] || '')
+      const supabase = await createSupabaseServerClient()
+      const { data: { user } } = await supabase.auth.getUser()
       
       if (user) {
         const dbUser = await prisma.user.findFirst({
