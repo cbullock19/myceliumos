@@ -22,9 +22,11 @@ import {
   CheckSquare,
   Clock,
   MoreVertical,
-  Plus
+  Plus,
+  UserPlus
 } from 'lucide-react'
 import { toast } from 'sonner'
+import ClientInviteModal from '@/components/ui/client-invite-modal'
 
 export default function ClientDetailPage() {
   const router = useRouter()
@@ -34,6 +36,7 @@ export default function ClientDetailPage() {
   const [client, setClient] = useState<Client | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [showInviteModal, setShowInviteModal] = useState(false)
 
   useEffect(() => {
     const loadClient = async () => {
@@ -151,6 +154,13 @@ export default function ClientDetailPage() {
             </div>
             
             <div className="flex items-center space-x-2">
+              <Button
+                onClick={() => setShowInviteModal(true)}
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                <UserPlus className="h-4 w-4 mr-2" />
+                Invite Client User
+              </Button>
               <Button
                 variant="outline"
                 onClick={handleEdit}
@@ -414,6 +424,13 @@ export default function ClientDetailPage() {
           </div>
         </div>
       </div>
+
+      <ClientInviteModal
+        isOpen={showInviteModal}
+        onClose={() => setShowInviteModal(false)}
+        clientId={clientId}
+        clientName={client.name}
+      />
     </div>
   )
 } 
