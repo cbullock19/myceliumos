@@ -17,19 +17,76 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { basicInfo, selectedServices, branding, teamInvites } = body
 
-    // Get the user's organization
-    const dbUser = await prisma.user.findUnique({
+    // Get the user's organization - handle case where user doesn't exist yet
+    let dbUser: any = await prisma.user.findUnique({
       where: { id: user.id },
       include: { organization: true }
     })
 
+    // If user doesn't exist in database yet, create organization and user
+    if (!dbUser) {
+      console.log('🆕 User not found in database, creating organization and user...')
+      
+      const result = await prisma.$transaction(async (tx) => {
+        // Create organization
+        const organization = await tx.organization.create({
+          data: {
+            name: basicInfo.organizationName,
+            slug: generateOrganizationSlug(basicInfo.organizationName),
+            website: basicInfo.website || null,
+            industry: basicInfo.industry
+          }
+        })
+
+        // Create organization branding
+        await tx.organizationBranding.create({
+          data: {
+            organizationId: organization.id,
+            primaryColor: branding.primaryColor,
+            logoUrl: branding.logoUrl || null
+          }
+        })
+
+        // Create organization settings
+        await tx.organizationSettings.create({
+          data: {
+            organizationId: organization.id
+          }
+        })
+
+        // Create user record
+        dbUser = await tx.user.create({
+          data: {
+            id: user.id, // Use Supabase Auth user ID
+            email: user.email,
+            name: user.user_metadata?.name || user.email.split('@')[0],
+            role: 'ADMIN',
+            status: 'PENDING',
+            organizationId: organization.id,
+            emailVerified: true
+          },
+          include: {
+            organization: true
+          }
+        })
+
+        return { organization, user: dbUser }
+      })
+
+      console.log('✅ Created organization and user:', {
+        organizationId: result.organization.id,
+        userId: result.user.id,
+        organizationName: result.organization.name
+      })
+    }
+
     if (!dbUser || !dbUser.organization) {
-      return NextResponse.json(createApiError('User or organization not found', 404), { status: 404 })
+      return NextResponse.json(createApiError('Failed to create or find user/organization', 500), { status: 500 })
     }
 
     // Start a transaction to ensure data consistency
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Update organization with basic info
+      // 1. Update organization with basic info (if not already set)
       const updatedOrg = await tx.organization.update({
         where: { id: dbUser.organizationId },
         data: {

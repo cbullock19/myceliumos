@@ -24,11 +24,20 @@ export async function GET(request: NextRequest) {
       }
     })
 
+    // If user doesn't exist in database yet, they need onboarding
     if (!userProfile) {
-      return NextResponse.json(
-        { error: 'User not found in database' },
-        { status: 404 }
-      )
+      return NextResponse.json({
+        data: {
+          needsOnboarding: true,
+          hasOrganization: false,
+          onboardingCompleted: false,
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.user_metadata?.name || user.email.split('@')[0]
+          }
+        }
+      })
     }
 
     // Check if user has completed onboarding (based on status and organization setup)
