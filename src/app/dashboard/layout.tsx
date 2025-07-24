@@ -57,13 +57,30 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           return
         }
 
+        // Fetch organization data from API to get the real organization name
+        let organizationName = user.user_metadata?.companyName || user.user_metadata?.organizationName || 'Your Organization'
+        let organizationSlug = user.user_metadata?.organizationSlug || 'your-organization'
+        
+        try {
+          const response = await fetch('/api/auth/check-onboarding')
+          if (response.ok) {
+            const data = await response.json()
+            if (data.data?.organization?.name) {
+              organizationName = data.data.organization.name
+              organizationSlug = data.data.organization.slug
+            }
+          }
+        } catch (apiError) {
+          console.warn('Failed to fetch organization data from API:', apiError)
+        }
+
         setUserData({
           id: user.id,
           email: user.email || '',
           name: user.user_metadata?.name || 'User',
           organization: {
-            name: user.user_metadata?.companyName || user.user_metadata?.organizationName || 'Your Organization',
-            slug: user.user_metadata?.organizationSlug || 'your-organization'
+            name: organizationName,
+            slug: organizationSlug
           }
         })
       } catch (error) {
