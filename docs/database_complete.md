@@ -394,7 +394,7 @@ model ClientUser {
   clientId String
   email    String @unique
   name     String
-  role     ClientUserRole @default(VIEWER)
+  role     ClientUserRole @default(COLLABORATOR)
   
   // Authentication
   hashedPassword String?
@@ -421,9 +421,8 @@ model ClientUser {
 }
 
 enum ClientUserRole {
-  PRIMARY // Main contact, full permissions
-  VIEWER  // Read-only access
-  ADMIN   // Can manage other client users
+  PRIMARY      // Main contact, full access to their portal
+  COLLABORATOR // Read-only access with optional comment/download ability
 }
 
 // ====== PROJECT & DELIVERABLE SYSTEM ======

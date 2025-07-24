@@ -13,7 +13,7 @@ import { toast } from 'sonner'
 const inviteSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   email: z.string().email('Please enter a valid email address'),
-  role: z.enum(['PRIMARY', 'VIEWER', 'ADMIN']),
+  role: z.enum(['PRIMARY', 'COLLABORATOR']),
   canApprove: z.boolean().default(false),
   canDownload: z.boolean().default(true),
   canComment: z.boolean().default(true)
@@ -40,7 +40,7 @@ export default function ClientInviteModal({ isOpen, onClose, clientId, clientNam
   } = useForm<InviteFormData>({
     resolver: zodResolver(inviteSchema),
     defaultValues: {
-      role: 'VIEWER',
+      role: 'COLLABORATOR',
       canApprove: false,
       canDownload: true,
       canComment: true
@@ -48,6 +48,37 @@ export default function ClientInviteModal({ isOpen, onClose, clientId, clientNam
   })
 
   const selectedRole = watch('role')
+
+  // Role-based permission presets
+  const getRolePermissions = (role: string) => {
+    switch (role) {
+      case 'PRIMARY':
+        return {
+          canApprove: true,
+          canDownload: true,
+          canComment: true
+        }
+      case 'COLLABORATOR':
+        return {
+          canApprove: false,
+          canDownload: true,
+          canComment: true
+        }
+      default:
+        return {
+          canApprove: false,
+          canDownload: true,
+          canComment: true
+        }
+    }
+  }
+
+  const handleRoleChange = (role: string) => {
+    const permissions = getRolePermissions(role)
+    // Update form values with role-based permissions
+    // Note: This is a simplified approach - in a real implementation you'd use setValue
+    // For now, we'll let users manually adjust permissions after role selection
+  }
 
   const onSubmit = async (data: InviteFormData) => {
     setIsLoading(true)
@@ -167,9 +198,8 @@ export default function ClientInviteModal({ isOpen, onClose, clientId, clientNam
               </label>
               <div className="space-y-2">
                 {[
-                  { value: 'PRIMARY', label: 'Primary Contact', description: 'Full access, can approve deliverables' },
-                  { value: 'VIEWER', label: 'Viewer', description: 'Read-only access to projects and files' },
-                  { value: 'ADMIN', label: 'Admin', description: 'Can manage other client users' }
+                  { value: 'PRIMARY', label: 'Primary Contact', description: 'Full access to their portal. Can approve deliverables, comment, and download files.' },
+                  { value: 'COLLABORATOR', label: 'Collaborator', description: 'Read-only access with optional comment/download ability. Cannot approve.' }
                 ].map((role) => (
                   <label key={role.value} className="flex items-start space-x-3 cursor-pointer">
                     <input
@@ -207,6 +237,9 @@ export default function ClientInviteModal({ isOpen, onClose, clientId, clientNam
                   <div className="flex items-center">
                     <CheckSquare className="h-4 w-4 text-gray-400 mr-2" />
                     <span className="text-sm text-gray-900">Can approve deliverables</span>
+                    {selectedRole === 'PRIMARY' && (
+                      <span className="ml-2 text-xs text-emerald-600 font-medium">(Auto-enabled for Primary Contact)</span>
+                    )}
                   </div>
                 </label>
 

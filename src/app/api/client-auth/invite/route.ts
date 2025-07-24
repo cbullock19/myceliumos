@@ -12,7 +12,7 @@ interface InviteRequest {
   email: string
   clientId: string
   name: string
-  role: 'PRIMARY' | 'VIEWER' | 'ADMIN'
+  role: 'PRIMARY' | 'COLLABORATOR'
   permissions?: {
     canApprove?: boolean
     canDownload?: boolean
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
         clientId,
         email,
         name,
-        role,
+        role: role as any, // Type assertion for now until Prisma client is regenerated
         isActive: false,
         emailVerified: false,
         canApprove: permissions?.canApprove ?? (role === 'PRIMARY'),

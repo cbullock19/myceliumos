@@ -6,7 +6,7 @@ export interface ClientUser {
   id: string
   email: string
   name: string
-  role: 'PRIMARY' | 'VIEWER' | 'ADMIN'
+  role: 'PRIMARY' | 'COLLABORATOR'
   title?: string
   phone?: string
   lastLoginAt?: string
@@ -49,7 +49,7 @@ export async function getClientSession(request: NextRequest): Promise<ClientSess
         id: clientUser.id,
         email: clientUser.email,
         name: clientUser.name,
-        role: clientUser.role,
+        role: clientUser.role as 'PRIMARY' | 'COLLABORATOR',
         title: clientUser.title,
         phone: clientUser.phone,
         lastLoginAt: clientUser.lastLoginAt?.toISOString(),

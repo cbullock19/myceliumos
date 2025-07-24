@@ -65,7 +65,7 @@ async function handleInvitationSetup(token: string, name: string, password: stri
         clientId: decoded.clientId,
         email: decoded.email,
         name: name || decoded.name,
-        role: decoded.role,
+        role: decoded.role as any, // Type assertion for now until Prisma client is regenerated
         hashedPassword,
         isActive: true,
         emailVerified: true,
