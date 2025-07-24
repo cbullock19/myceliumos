@@ -92,35 +92,35 @@ function AuthCallbackContent() {
             return
           }
           
-                     if (data.session) {
-             console.log('✅ Session established via code exchange')
-             toast.success('Email confirmed successfully!')
-             
-             // Set initial onboarding metadata
-             try {
-               const { error: metadataError } = await supabase.auth.updateUser({
-                 data: {
-                   onboarding_complete: false,
-                   onboarding_started_at: new Date().toISOString()
-                 }
-               })
-               
-               if (metadataError) {
-                 console.error('⚠️ Failed to set initial metadata:', metadataError)
-               } else {
-                 console.log('✅ Initial onboarding metadata set')
-               }
-             } catch (error) {
-               console.error('⚠️ Metadata update failed:', error)
-             }
-             
-             // Store onboarding state
-             localStorage.setItem('onboarding_step', '1')
-             
-             // Redirect to onboarding
-             router.push('/onboarding')
-             return
-           }
+          if (data.session) {
+            console.log('✅ Session established via code exchange')
+            toast.success('Email confirmed successfully!')
+            
+            // Set initial onboarding metadata
+            try {
+              const { error: metadataError } = await supabase.auth.updateUser({
+                data: {
+                  onboarding_complete: false,
+                  onboarding_started_at: new Date().toISOString()
+                }
+              })
+              
+              if (metadataError) {
+                console.error('⚠️ Failed to set initial metadata:', metadataError)
+              } else {
+                console.log('✅ Initial onboarding metadata set')
+              }
+            } catch (error) {
+              console.error('⚠️ Metadata update failed:', error)
+            }
+            
+            // Store onboarding state
+            localStorage.setItem('onboarding_step', '1')
+            
+            // Redirect to onboarding
+            router.push('/onboarding')
+            return
+          }
         }
         
         // Method 3: Check for existing session
@@ -132,36 +132,36 @@ function AuthCallbackContent() {
           return
         }
         
-                 if (session?.user) {
-           console.log('✅ Found existing session, redirecting to onboarding...')
-           toast.success('Email confirmed successfully!')
-           
-           // Set initial onboarding metadata if not already set
-           if (!session.user.user_metadata?.onboarding_complete) {
-             try {
-               const { error: metadataError } = await supabase.auth.updateUser({
-                 data: {
-                   onboarding_complete: false,
-                   onboarding_started_at: new Date().toISOString()
-                 }
-               })
-               
-               if (metadataError) {
-                 console.error('⚠️ Failed to set initial metadata:', metadataError)
-               } else {
-                 console.log('✅ Initial onboarding metadata set')
-               }
-             } catch (error) {
-               console.error('⚠️ Metadata update failed:', error)
-             }
-           }
-           
-           // Store onboarding state
-           localStorage.setItem('onboarding_step', '1')
-           
-           router.push('/onboarding')
-           return
-         }
+        if (session?.user) {
+          console.log('✅ Found existing session, redirecting to onboarding...')
+          toast.success('Email confirmed successfully!')
+          
+          // Set initial onboarding metadata if not already set
+          if (!session.user.user_metadata?.onboarding_complete) {
+            try {
+              const { error: metadataError } = await supabase.auth.updateUser({
+                data: {
+                  onboarding_complete: false,
+                  onboarding_started_at: new Date().toISOString()
+                }
+              })
+              
+              if (metadataError) {
+                console.error('⚠️ Failed to set initial metadata:', metadataError)
+              } else {
+                console.log('✅ Initial onboarding metadata set')
+              }
+            } catch (error) {
+              console.error('⚠️ Metadata update failed:', error)
+            }
+          }
+          
+          // Store onboarding state
+          localStorage.setItem('onboarding_step', '1')
+          
+          router.push('/onboarding')
+          return
+        }
         
         // Method 4: Handle error parameters
         const errorParam = searchParams.get('error')

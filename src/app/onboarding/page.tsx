@@ -225,7 +225,7 @@ export default function OnboardingPage() {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Welcome to Mycelium OS, {user.user_metadata?.name}!</h1>
-          <p className="mt-2 text-lg text-gray-600">Let's set up your agency in 5 quick steps</p>
+          <p className="mt-2 text-lg text-gray-600">Let's set up your workspace. It'll only take a minute.</p>
         </div>
 
         {/* Progress Indicator */}
