@@ -29,7 +29,7 @@ interface ProfileData {
     title?: string
     phone?: string
     role: string
-    lastLoginAt: string
+    lastLoginAt?: string
     createdAt: string
   }
   organization: {
@@ -43,15 +43,17 @@ interface ProfileData {
     canComment: boolean
   }
   activity: {
-    totalLogins: number
-    lastActivity: string
+    totalDeliverables: number
+    completedDeliverables: number
     recentProjects: number
+    lastActivity: string
   }
 }
 
 export default function ClientPortalProfilePage() {
   const [profileData, setProfileData] = useState<ProfileData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [formData, setFormData] = useState({
@@ -64,44 +66,32 @@ export default function ClientPortalProfilePage() {
   useEffect(() => {
     const loadProfileData = async () => {
       try {
-        // TODO: Replace with actual API call
-        // const response = await fetch('/api/client-portal/profile')
-        // const data = await response.json()
-        // setProfileData(data.data)
-
-        // Mock data for now
-        setProfileData({
-          user: {
-            id: '1',
-            name: 'John Smith',
-            email: 'john.smith@company.com',
-            title: 'Marketing Director',
-            phone: '+1 (555) 123-4567',
-            role: 'PRIMARY',
-            lastLoginAt: '2024-01-15T10:30:00Z',
-            createdAt: '2023-12-01T09:00:00Z'
-          },
-          organization: {
-            name: 'Acme Corporation',
-            contactEmail: 'support@acme.com',
-            supportPhone: '+1 (555) 987-6543'
-          },
-          permissions: {
-            canApprove: true,
-            canDownload: true,
-            canComment: true
-          },
-          activity: {
-            totalLogins: 47,
-            lastActivity: '2024-01-15T14:22:00Z',
-            recentProjects: 3
-          }
-        })
-      } catch (error) {
-        console.error('Error loading profile data:', error)
-      } finally {
-        setIsLoading(false)
-      }
+        console.log('🔍 Loading profile data...')
+        const response = await fetch('/api/client-portal/profile')
+        
+        if (!response.ok) {
+          throw new Error(`Failed to load profile: ${response.status}`)
+        }
+        
+        const result = await response.json()
+        console.log('✅ Profile data loaded:', result.data)
+        setProfileData(result.data)
+        
+        // Initialize form data with current values
+        if (result.data.user) {
+          setFormData({
+            name: result.data.user.name || '',
+            email: result.data.user.email || '',
+            phone: result.data.user.phone || '',
+            title: result.data.user.title || ''
+          })
+        }
+              } catch (error) {
+          console.error('❌ Error loading profile data:', error)
+          setError('Failed to load profile data')
+        } finally {
+          setIsLoading(false)
+        }
     }
 
     loadProfileData()
@@ -163,16 +153,34 @@ export default function ClientPortalProfilePage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading your profile...</p>
+        </div>
       </div>
     )
   }
 
-  if (!profileData) {
+  if (error || !profileData) {
     return (
-      <div className="text-center py-12">
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">Unable to load profile</h2>
-        <p className="text-gray-600">Please try refreshing the page or contact your project team.</p>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <User className="h-8 w-8 text-red-600" />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
+            {error ? 'Failed to load profile' : 'Unable to load profile'}
+          </h2>
+          <p className="text-gray-600 mb-4">
+            {error || 'Please try refreshing the page or contact your project team.'}
+          </p>
+          <Button 
+            onClick={() => window.location.reload()} 
+            className="mt-4"
+          >
+            Try Again
+          </Button>
+        </div>
       </div>
     )
   }
@@ -344,8 +352,8 @@ export default function ClientPortalProfilePage() {
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="text-center p-4 bg-blue-50 rounded-lg">
-                  <p className="text-2xl font-bold text-blue-600">{profileData.activity.totalLogins}</p>
-                  <p className="text-sm text-gray-600">Total Logins</p>
+                  <p className="text-2xl font-bold text-blue-600">{profileData.activity.totalDeliverables}</p>
+                  <p className="text-sm text-gray-600">Total Deliverables</p>
                 </div>
                 <div className="text-center p-4 bg-green-50 rounded-lg">
                   <p className="text-2xl font-bold text-green-600">{profileData.activity.recentProjects}</p>
