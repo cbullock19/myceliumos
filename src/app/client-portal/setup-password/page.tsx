@@ -54,6 +54,8 @@ function SetupPasswordForm() {
   const [invitationData, setInvitationData] = useState<InvitationData | null>(null)
   const [isValidToken, setIsValidToken] = useState(false)
   const [isTokenExpired, setIsTokenExpired] = useState(false)
+  const [validationError, setValidationError] = useState<string | null>(null)
+  const [isValidating, setIsValidating] = useState(false)
 
   const token = searchParams.get('token')
 
@@ -64,28 +66,61 @@ function SetupPasswordForm() {
   }, [token])
 
   const validateInvitationToken = async () => {
+    setIsValidating(true)
+    setValidationError(null)
+    
     try {
+      console.log('🔍 Validating invitation token...')
+      
+      // Add timeout to the fetch request
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+      
       const response = await fetch('/api/client-auth/validate-invitation', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ token })
+        body: JSON.stringify({ token }),
+        signal: controller.signal
       })
-
-      const result = await response.json()
-
-      if (response.ok) {
-        setInvitationData(result.data)
-        setIsValidToken(true)
-      } else if (result.error === 'TOKEN_EXPIRED') {
-        setIsTokenExpired(true)
-      } else {
-        setIsValidToken(false)
+      
+      clearTimeout(timeoutId)
+      
+      console.log('📡 Token validation response status:', response.status)
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error('❌ Token validation failed:', errorData)
+        
+        if (errorData.error === 'TOKEN_EXPIRED') {
+          setIsTokenExpired(true)
+        } else {
+          setValidationError(errorData.error || 'Failed to validate invitation')
+        }
+        return
       }
+      
+      const result = await response.json()
+      console.log('✅ Token validation successful:', result.data)
+      
+      setInvitationData(result.data)
+      setIsValidToken(true)
+      
     } catch (error) {
-      console.error('Token validation error:', error)
-      setIsValidToken(false)
+      console.error('❌ Token validation error:', error)
+      
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          setValidationError('Request timed out. Please try again or contact support.')
+        } else {
+          setValidationError('Network error. Please check your connection and try again.')
+        }
+      } else {
+        setValidationError('Something went wrong validating your invitation. Please request a new invite or contact support.')
+      }
+    } finally {
+      setIsValidating(false)
     }
   }
 
@@ -180,17 +215,62 @@ function SetupPasswordForm() {
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <Card>
             <CardHeader className="text-center">
-              <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                <Lock className="h-8 w-8 text-gray-600" />
-              </div>
+              {isValidating ? (
+                <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                </div>
+              ) : validationError ? (
+                <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                  <AlertCircle className="h-8 w-8 text-red-600" />
+                </div>
+              ) : (
+                <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                  <Lock className="h-8 w-8 text-gray-600" />
+                </div>
+              )}
               <CardTitle className="text-2xl font-bold text-gray-900">
-                Validating Invitation
+                {isValidating ? 'Validating Invitation' : validationError ? 'Validation Failed' : 'Validating Invitation'}
               </CardTitle>
             </CardHeader>
             <CardContent className="text-center">
-              <p className="text-gray-600">
-                Please wait while we validate your invitation...
-              </p>
+              {isValidating ? (
+                <div>
+                  <p className="text-gray-600 mb-4">
+                    Please wait while we validate your invitation...
+                  </p>
+                  <div className="text-sm text-gray-500">
+                    This may take a few seconds
+                  </div>
+                </div>
+              ) : validationError ? (
+                <div>
+                  <p className="text-red-600 mb-4">
+                    {validationError}
+                  </p>
+                  <div className="space-y-3">
+                    <Button 
+                      onClick={() => {
+                        setValidationError(null)
+                        validateInvitationToken()
+                      }}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      Try Again
+                    </Button>
+                    <Button 
+                      onClick={() => router.push('/client-portal/login')}
+                      className="w-full"
+                    >
+                      Go to Login
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-gray-600">
+                  Please wait while we validate your invitation...
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
