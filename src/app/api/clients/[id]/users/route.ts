@@ -5,7 +5,7 @@ import { createApiResponse, createApiError } from '@/lib/utils'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createSupabaseServerClient()
@@ -15,7 +15,7 @@ export async function GET(
       return NextResponse.json(createApiError('Not authenticated', 401), { status: 401 })
     }
 
-    const clientId = params.id
+    const { id: clientId } = await params
 
     // Verify the client exists and belongs to the user's organization
     const adminUser = await prisma.user.findUnique({
@@ -71,7 +71,7 @@ export async function GET(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createSupabaseServerClient()
@@ -81,7 +81,7 @@ export async function DELETE(
       return NextResponse.json(createApiError('Not authenticated', 401), { status: 401 })
     }
 
-    const clientId = params.id
+    const { id: clientId } = await params
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
 
