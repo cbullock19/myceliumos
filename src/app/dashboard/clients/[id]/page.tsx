@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import ClientInviteModal from '@/components/ui/client-invite-modal'
+import ClientUserManagement from '@/components/ui/client-user-management'
 
 export default function ClientDetailPage() {
   const router = useRouter()
@@ -37,6 +38,7 @@ export default function ClientDetailPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isDeleting, setIsDeleting] = useState(false)
   const [showInviteModal, setShowInviteModal] = useState(false)
+  const [refreshUsers, setRefreshUsers] = useState(0)
 
   useEffect(() => {
     const loadClient = async () => {
@@ -283,6 +285,13 @@ export default function ClientDetailPage() {
               </Card>
             )}
 
+            {/* Client User Management */}
+            <ClientUserManagement 
+              clientId={clientId}
+              clientName={client.name}
+              key={refreshUsers} // Force re-render when refreshUsers changes
+            />
+
             {/* Projects & Deliverables (Placeholder for future implementation) */}
             <Card>
               <CardHeader>
@@ -430,6 +439,9 @@ export default function ClientDetailPage() {
         onClose={() => setShowInviteModal(false)}
         clientId={clientId}
         clientName={client.name}
+        onSuccess={() => {
+          setRefreshUsers(prev => prev + 1) // Trigger refresh of user list
+        }}
       />
     </div>
   )

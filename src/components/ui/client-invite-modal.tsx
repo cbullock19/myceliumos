@@ -26,9 +26,10 @@ interface ClientInviteModalProps {
   onClose: () => void
   clientId: string
   clientName: string
+  onSuccess?: () => void
 }
 
-export default function ClientInviteModal({ isOpen, onClose, clientId, clientName }: ClientInviteModalProps) {
+export default function ClientInviteModal({ isOpen, onClose, clientId, clientName, onSuccess }: ClientInviteModalProps) {
   const [isLoading, setIsLoading] = useState(false)
 
   const {
@@ -109,6 +110,7 @@ export default function ClientInviteModal({ isOpen, onClose, clientId, clientNam
       toast.success('Invitation sent successfully!')
       reset()
       onClose()
+      onSuccess?.() // Call onSuccess callback if provided
     } catch (error) {
       console.error('Invitation error:', error)
       toast.error('Failed to send invitation')
