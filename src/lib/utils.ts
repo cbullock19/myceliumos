@@ -188,22 +188,22 @@ export const getBaseUrl = (): string => {
 
 // Production URL guard to prevent Vercel URLs in production
 export const getProductionSafeBaseUrl = (): string => {
-  // Always prioritize custom domain in production
-  if (process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_APP_URL) {
-    return process.env.NEXT_PUBLIC_APP_URL
-  }
-  
-  // Fallback to base URL logic
-  const baseUrl = getBaseUrl()
-  
-  // In production, ensure we're not using Vercel preview URLs
-  if (process.env.NODE_ENV === 'production' && baseUrl.includes('vercel.app')) {
-    console.warn('⚠️ Production environment detected but using Vercel URL:', baseUrl)
+  // Force custom domain in production
+  if (process.env.NODE_ENV === 'production') {
+    // Always use custom domain if available
+    if (process.env.NEXT_PUBLIC_APP_URL) {
+      console.log('✅ Using custom domain from NEXT_PUBLIC_APP_URL:', process.env.NEXT_PUBLIC_APP_URL)
+      return process.env.NEXT_PUBLIC_APP_URL
+    }
     
-    // If no custom domain configured, log error
-    console.error('❌ No custom domain configured for production. Please set NEXT_PUBLIC_APP_URL.')
+    // Fallback to hardcoded custom domain for production
+    console.log('⚠️ NEXT_PUBLIC_APP_URL not set, using hardcoded custom domain')
+    return 'https://myceliumos.app'
   }
   
+  // Development fallback
+  const baseUrl = getBaseUrl()
+  console.log('🔧 Development mode, using baseUrl:', baseUrl)
   return baseUrl
 }
 
