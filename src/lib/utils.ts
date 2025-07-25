@@ -188,17 +188,17 @@ export const getBaseUrl = (): string => {
 
 // Production URL guard to prevent Vercel URLs in production
 export const getProductionSafeBaseUrl = (): string => {
+  // Always prioritize custom domain in production
+  if (process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL
+  }
+  
+  // Fallback to base URL logic
   const baseUrl = getBaseUrl()
   
   // In production, ensure we're not using Vercel preview URLs
   if (process.env.NODE_ENV === 'production' && baseUrl.includes('vercel.app')) {
     console.warn('⚠️ Production environment detected but using Vercel URL:', baseUrl)
-    
-    // Fallback to custom domain if available
-    if (process.env.NEXT_PUBLIC_APP_URL) {
-      console.log('🔄 Falling back to custom domain:', process.env.NEXT_PUBLIC_APP_URL)
-      return process.env.NEXT_PUBLIC_APP_URL
-    }
     
     // If no custom domain configured, log error
     console.error('❌ No custom domain configured for production. Please set NEXT_PUBLIC_APP_URL.')
