@@ -24,78 +24,70 @@ interface Project {
   status: string
   startDate?: string
   endDate?: string
-  progress: number
+  manager?: {
+    id: string
+    name: string
+    avatarUrl?: string
+  }
+  client: {
+    id: string
+    name: string
+    slug: string
+  }
   deliverables: {
-    total: number
-    completed: number
+    id: string
+    title: string
+    status: string
+    dueDate?: string
+    completedAt?: string
+  }[]
+  milestones: {
+    id: string
+    name: string
+    status: string
+    dueDate?: string
+    completedAt?: string
+  }[]
+  _count: {
+    deliverables: number
+    milestones: number
   }
 }
 
 interface ProjectsData {
   projects: Project[]
-  stats: {
-    totalProjects: number
-    activeProjects: number
-    completedProjects: number
-    overdueProjects: number
+  pagination: {
+    page: number
+    limit: number
+    total: number
+    totalPages: number
+  }
+  filters: {
+    statusCounts: Record<string, number>
   }
 }
 
 export default function ClientPortalProjectsPage() {
   const [projectsData, setProjectsData] = useState<ProjectsData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const loadProjectsData = async () => {
       try {
-        // TODO: Replace with actual API call
-        // const response = await fetch('/api/client-portal/projects')
-        // const data = await response.json()
-        // setProjectsData(data.data)
-
-        // Mock data for now
-        setProjectsData({
-          projects: [
-            {
-              id: '1',
-              name: 'Website Redesign',
-              description: 'Complete redesign of company website with modern UI/UX',
-              status: 'ACTIVE',
-              startDate: '2024-01-01',
-              endDate: '2024-03-15',
-              progress: 65,
-              deliverables: { total: 8, completed: 5 }
-            },
-            {
-              id: '2',
-              name: 'Brand Identity Package',
-              description: 'Logo design, brand guidelines, and marketing materials',
-              status: 'COMPLETED',
-              startDate: '2023-12-01',
-              endDate: '2024-01-15',
-              progress: 100,
-              deliverables: { total: 6, completed: 6 }
-            },
-            {
-              id: '3',
-              name: 'Social Media Campaign',
-              description: 'Q1 social media content and advertising campaign',
-              status: 'PLANNING',
-              startDate: '2024-02-01',
-              endDate: '2024-04-30',
-              progress: 0,
-              deliverables: { total: 12, completed: 0 }
-            }
-          ],
-          stats: {
-            totalProjects: 3,
-            activeProjects: 1,
-            completedProjects: 1,
-            overdueProjects: 0
-          }
-        })
+        console.log('🔍 Loading projects data...')
+        const response = await fetch('/api/client-portal/projects')
+        
+        if (!response.ok) {
+          throw new Error(`Failed to load projects: ${response.status}`)
+        }
+        
+        const result = await response.json()
+        console.log('✅ Projects data loaded:', result.data)
+        setProjectsData(result.data)
       } catch (error) {
-        console.error('Error loading projects data:', error)
+        console.error('❌ Error loading projects data:', error)
+        setError('Failed to load projects data')
       } finally {
         setIsLoading(false)
       }
@@ -164,7 +156,7 @@ export default function ClientPortalProjectsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Total Projects</p>
-                <p className="text-2xl font-bold text-gray-900">{projectsData.stats.totalProjects}</p>
+                <p className="text-2xl font-bold text-gray-900">{projectsData.pagination.total}</p>
               </div>
               <div className="p-2 bg-emerald-100 rounded-lg">
                 <FolderOpen className="h-6 w-6 text-emerald-600" />
@@ -178,7 +170,7 @@ export default function ClientPortalProjectsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Active Projects</p>
-                <p className="text-2xl font-bold text-blue-600">{projectsData.stats.activeProjects}</p>
+                <p className="text-2xl font-bold text-blue-600">{projectsData.filters.statusCounts.ACTIVE || 0}</p>
               </div>
               <div className="p-2 bg-blue-100 rounded-lg">
                 <Target className="h-6 w-6 text-blue-600" />
@@ -192,7 +184,7 @@ export default function ClientPortalProjectsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Completed</p>
-                <p className="text-2xl font-bold text-green-600">{projectsData.stats.completedProjects}</p>
+                <p className="text-2xl font-bold text-green-600">{projectsData.filters.statusCounts.COMPLETED || 0}</p>
               </div>
               <div className="p-2 bg-green-100 rounded-lg">
                 <CheckCircle className="h-6 w-6 text-green-600" />
@@ -206,7 +198,7 @@ export default function ClientPortalProjectsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Overdue</p>
-                <p className="text-2xl font-bold text-red-600">{projectsData.stats.overdueProjects}</p>
+                <p className="text-2xl font-bold text-red-600">{projectsData.filters.statusCounts.OVERDUE || 0}</p>
               </div>
               <div className="p-2 bg-red-100 rounded-lg">
                 <AlertTriangle className="h-6 w-6 text-red-600" />
@@ -250,7 +242,7 @@ export default function ClientPortalProjectsPage() {
                       </div>
                       <div className="flex items-center">
                         <User className="h-4 w-4 mr-1" />
-                        <span>{project.deliverables.completed}/{project.deliverables.total} deliverables</span>
+                        <span>{project._count.deliverables} deliverables</span>
                       </div>
                     </div>
                   </div>
@@ -269,16 +261,26 @@ export default function ClientPortalProjectsPage() {
                 
                 {/* Progress Bar */}
                 <div className="mb-2">
-                  <div className="flex justify-between text-sm text-gray-600 mb-1">
-                    <span>Progress</span>
-                    <span>{project.progress}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-emerald-600 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${project.progress}%` }}
-                    ></div>
-                  </div>
+                  {(() => {
+                    const completedDeliverables = project.deliverables.filter(d => d.status === 'COMPLETED').length
+                    const totalDeliverables = project.deliverables.length
+                    const progress = totalDeliverables > 0 ? Math.round((completedDeliverables / totalDeliverables) * 100) : 0
+                    
+                    return (
+                      <>
+                        <div className="flex justify-between text-sm text-gray-600 mb-1">
+                          <span>Progress</span>
+                          <span>{progress}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-emerald-600 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${progress}%` }}
+                          ></div>
+                        </div>
+                      </>
+                    )
+                  })()}
                 </div>
               </div>
             ))}
