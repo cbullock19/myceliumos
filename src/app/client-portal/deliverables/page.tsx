@@ -25,107 +25,60 @@ interface Deliverable {
   description?: string
   status: string
   dueDate?: string
+  completedAt?: string
   serviceType: {
+    id: string
     name: string
-    color?: string
+    slug: string
+    color: string
   }
   assignedUser?: {
+    id: string
     name: string
+    avatarUrl?: string
   }
-  project?: {
+  client: {
+    id: string
     name: string
+    slug: string
   }
-  needsApproval: boolean
-  hasComments: boolean
-  hasFiles: boolean
+  _count: {
+    comments: number
+  }
 }
 
 interface DeliverablesData {
   deliverables: Deliverable[]
-  stats: {
-    totalDeliverables: number
-    pendingApprovals: number
-    completedThisMonth: number
-    overdue: number
+  pagination: {
+    page: number
+    limit: number
+    total: number
+    totalPages: number
+  }
+  filters: {
+    statusCounts: Record<string, number>
   }
 }
 
 export default function ClientPortalDeliverablesPage() {
   const [deliverablesData, setDeliverablesData] = useState<DeliverablesData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState('all')
 
   useEffect(() => {
     const loadDeliverablesData = async () => {
       try {
-        // TODO: Replace with actual API call
-        // const response = await fetch('/api/client-portal/deliverables')
-        // const data = await response.json()
-        // setDeliverablesData(data.data)
-
-        // Mock data for now
-        setDeliverablesData({
-          deliverables: [
-            {
-              id: '1',
-              title: 'Website Homepage Design',
-              description: 'Complete homepage design with responsive layout and modern UI',
-              status: 'COMPLETED',
-              dueDate: '2024-01-15',
-              serviceType: { name: 'Web Design', color: '#3B82F6' },
-              assignedUser: { name: 'Sarah Johnson' },
-              project: { name: 'Website Redesign' },
-              needsApproval: false,
-              hasComments: true,
-              hasFiles: true
-            },
-            {
-              id: '2',
-              title: 'Social Media Content Calendar',
-              description: 'Monthly content calendar for all social media platforms',
-              status: 'IN_PROGRESS',
-              dueDate: '2024-01-20',
-              serviceType: { name: 'Social Media', color: '#8B5CF6' },
-              assignedUser: { name: 'Mike Chen' },
-              project: { name: 'Social Media Campaign' },
-              needsApproval: false,
-              hasComments: true,
-              hasFiles: false
-            },
-            {
-              id: '3',
-              title: 'Logo Design Final Files',
-              description: 'Final logo files in all required formats and sizes',
-              status: 'NEEDS_APPROVAL',
-              dueDate: '2024-01-18',
-              serviceType: { name: 'Branding', color: '#F59E0B' },
-              assignedUser: { name: 'Alex Rodriguez' },
-              project: { name: 'Brand Identity Package' },
-              needsApproval: true,
-              hasComments: false,
-              hasFiles: true
-            },
-            {
-              id: '4',
-              title: 'SEO Keyword Research',
-              description: 'Comprehensive keyword research and optimization strategy',
-              status: 'PENDING',
-              dueDate: '2024-01-25',
-              serviceType: { name: 'SEO', color: '#10B981' },
-              assignedUser: { name: 'David Kim' },
-              project: { name: 'Website Redesign' },
-              needsApproval: false,
-              hasComments: false,
-              hasFiles: false
-            }
-          ],
-          stats: {
-            totalDeliverables: 4,
-            pendingApprovals: 1,
-            completedThisMonth: 2,
-            overdue: 0
-          }
-        })
+        console.log('🔍 Loading deliverables data...')
+        const response = await fetch('/api/client-portal/deliverables')
+        
+        if (!response.ok) {
+          throw new Error(`Failed to load deliverables: ${response.status}`)
+        }
+        
+        const result = await response.json()
+        console.log('✅ Deliverables data loaded:', result.data)
+        setDeliverablesData(result.data)
       } catch (error) {
         console.error('Error loading deliverables data:', error)
       } finally {
@@ -201,7 +154,7 @@ export default function ClientPortalDeliverablesPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Total Deliverables</p>
-                <p className="text-2xl font-bold text-gray-900">{deliverablesData.stats.totalDeliverables}</p>
+                <p className="text-2xl font-bold text-gray-900">{deliverablesData.pagination.total}</p>
               </div>
               <div className="p-2 bg-emerald-100 rounded-lg">
                 <CheckSquare className="h-6 w-6 text-emerald-600" />
@@ -215,7 +168,7 @@ export default function ClientPortalDeliverablesPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Pending Approvals</p>
-                <p className="text-2xl font-bold text-yellow-600">{deliverablesData.stats.pendingApprovals}</p>
+                <p className="text-2xl font-bold text-yellow-600">{deliverablesData.filters.statusCounts.NEEDS_REVIEW || 0}</p>
               </div>
               <div className="p-2 bg-yellow-100 rounded-lg">
                 <ThumbsUp className="h-6 w-6 text-yellow-600" />
@@ -229,7 +182,7 @@ export default function ClientPortalDeliverablesPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Completed This Month</p>
-                <p className="text-2xl font-bold text-green-600">{deliverablesData.stats.completedThisMonth}</p>
+                <p className="text-2xl font-bold text-green-600">{deliverablesData.filters.statusCounts.COMPLETED || 0}</p>
               </div>
               <div className="p-2 bg-green-100 rounded-lg">
                 <CheckCircle className="h-6 w-6 text-green-600" />
@@ -243,7 +196,7 @@ export default function ClientPortalDeliverablesPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Overdue</p>
-                <p className="text-2xl font-bold text-red-600">{deliverablesData.stats.overdue}</p>
+                <p className="text-2xl font-bold text-red-600">{deliverablesData.filters.statusCounts.OVERDUE || 0}</p>
               </div>
               <div className="p-2 bg-red-100 rounded-lg">
                 <AlertTriangle className="h-6 w-6 text-red-600" />
@@ -298,11 +251,11 @@ export default function ClientPortalDeliverablesPage() {
                     <div className="flex items-center space-x-3 mb-2">
                       <h3 className="text-lg font-semibold text-gray-900">{deliverable.title}</h3>
                       {getStatusBadge(deliverable.status)}
-                                             {deliverable.needsApproval && (
-                         <Badge variant="default" className="bg-yellow-100 text-yellow-800">
-                           Needs Approval
-                         </Badge>
-                       )}
+                      {deliverable.status === 'NEEDS_REVIEW' && (
+                        <Badge variant="default" className="bg-yellow-100 text-yellow-800">
+                          Needs Approval
+                        </Badge>
+                      )}
                     </div>
                     <p className="text-gray-600 mb-3">{deliverable.description}</p>
                     
@@ -315,12 +268,10 @@ export default function ClientPortalDeliverablesPage() {
                         <User className="h-4 w-4 mr-1" />
                         <span>{deliverable.assignedUser?.name}</span>
                       </div>
-                      {deliverable.project && (
-                        <div className="flex items-center">
-                          <FileText className="h-4 w-4 mr-1" />
-                          <span>{deliverable.project.name}</span>
-                        </div>
-                      )}
+                      <div className="flex items-center">
+                        <FileText className="h-4 w-4 mr-1" />
+                        <span>{deliverable.serviceType.name}</span>
+                      </div>
                     </div>
                   </div>
                   
@@ -329,24 +280,22 @@ export default function ClientPortalDeliverablesPage() {
                       <Eye className="h-4 w-4 mr-1" />
                       View
                     </Button>
-                    {deliverable.hasFiles && (
-                      <Button variant="outline" size="sm">
-                        <Download className="h-4 w-4 mr-1" />
-                        Files
-                      </Button>
-                    )}
-                    {deliverable.hasComments && (
+                    <Button variant="outline" size="sm">
+                      <Download className="h-4 w-4 mr-1" />
+                      Files
+                    </Button>
+                    {deliverable._count.comments > 0 && (
                       <Button variant="outline" size="sm">
                         <MessageSquare className="h-4 w-4 mr-1" />
-                        Comments
+                        Comments ({deliverable._count.comments})
                       </Button>
                     )}
-                                         {deliverable.needsApproval && (
-                       <Button variant="primary" size="sm" className="bg-emerald-600 hover:bg-emerald-700">
-                         <ThumbsUp className="h-4 w-4 mr-1" />
-                         Approve
-                       </Button>
-                     )}
+                    {deliverable.status === 'NEEDS_REVIEW' && (
+                      <Button variant="primary" size="sm" className="bg-emerald-600 hover:bg-emerald-700">
+                        <ThumbsUp className="h-4 w-4 mr-1" />
+                        Approve
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
