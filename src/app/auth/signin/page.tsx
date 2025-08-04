@@ -72,12 +72,12 @@ export default function SigninPage() {
         if (userStatus === 'PENDING' || isFirstLogin) {
           console.log('🔑 Redirecting to password setup...')
           router.push('/auth/setup-password')
+        } else if (needsUserProfileCompletion) {
+          console.log('👤 Redirecting to team member profile completion...')
+          router.push('/onboarding/user')
         } else if (needsOrganizationOnboarding) {
           console.log('🏢 Redirecting to organization onboarding...')
           router.push('/onboarding')
-        } else if (needsUserProfileCompletion) {
-          console.log('👤 Redirecting to user profile completion...')
-          router.push('/onboarding/user')
         } else {
           console.log('🏠 Redirecting to dashboard...')
           router.push('/dashboard')

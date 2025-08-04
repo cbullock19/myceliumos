@@ -29,6 +29,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         data: {
           needsOnboarding: true,
+          needsOrganizationOnboarding: true,
+          needsUserProfileCompletion: false,
           hasOrganization: false,
           onboardingCompleted: false,
           user: {
@@ -44,10 +46,32 @@ export async function GET(request: NextRequest) {
     const hasOrganization = !!userProfile.organization
     const isActiveUser = userProfile.status === 'ACTIVE'
     const needsOnboarding = !hasOrganization || !isActiveUser
+    
+    // Determine the type of onboarding needed
+    let needsOrganizationOnboarding = false
+    let needsUserProfileCompletion = false
+    
+    if (needsOnboarding) {
+      if (!hasOrganization) {
+        // User needs to create an organization (new organization owner)
+        needsOrganizationOnboarding = true
+        needsUserProfileCompletion = false
+      } else if (hasOrganization && userProfile.status === 'PENDING') {
+        // User is part of an organization but needs to complete their profile (team member)
+        needsOrganizationOnboarding = false
+        needsUserProfileCompletion = true
+      } else {
+        // Fallback - user needs organization onboarding
+        needsOrganizationOnboarding = true
+        needsUserProfileCompletion = false
+      }
+    }
 
     return NextResponse.json({
       data: {
         needsOnboarding,
+        needsOrganizationOnboarding,
+        needsUserProfileCompletion,
         hasOrganization,
         onboardingCompleted: isActiveUser,
         user: {

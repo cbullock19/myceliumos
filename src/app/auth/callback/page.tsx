@@ -90,9 +90,28 @@ function AuthCallbackContent() {
               // Store onboarding state
               localStorage.setItem('onboarding_step', '1')
               
-              addDebugInfo('🔄 Redirecting to onboarding...')
-              // Redirect to onboarding
-              router.push('/onboarding')
+              addDebugInfo('🔄 Checking onboarding type...')
+              // Check what type of onboarding is needed
+              try {
+                const response = await fetch('/api/auth/check-onboarding')
+                const result = await response.json()
+                const { needsUserProfileCompletion, needsOrganizationOnboarding } = result.data || result
+                
+                if (needsUserProfileCompletion) {
+                  addDebugInfo('👤 Redirecting to team member onboarding...')
+                  router.push('/onboarding/user')
+                } else if (needsOrganizationOnboarding) {
+                  addDebugInfo('🏢 Redirecting to organization onboarding...')
+                  router.push('/onboarding')
+                } else {
+                  addDebugInfo('🏠 Redirecting to dashboard...')
+                  router.push('/dashboard')
+                }
+              } catch (error) {
+                addDebugInfo(`⚠️ Error checking onboarding type: ${error}`)
+                // Fallback to organization onboarding
+                router.push('/onboarding')
+              }
               return
             }
           }
@@ -138,8 +157,28 @@ function AuthCallbackContent() {
           // Store onboarding state
           localStorage.setItem('onboarding_step', '1')
           
-          addDebugInfo('🔄 Redirecting to onboarding...')
-          router.push('/onboarding')
+          addDebugInfo('🔄 Checking onboarding type...')
+          // Check what type of onboarding is needed
+          try {
+            const response = await fetch('/api/auth/check-onboarding')
+            const result = await response.json()
+            const { needsUserProfileCompletion, needsOrganizationOnboarding } = result.data || result
+            
+            if (needsUserProfileCompletion) {
+              addDebugInfo('👤 Redirecting to team member onboarding...')
+              router.push('/onboarding/user')
+            } else if (needsOrganizationOnboarding) {
+              addDebugInfo('🏢 Redirecting to organization onboarding...')
+              router.push('/onboarding')
+            } else {
+              addDebugInfo('🏠 Redirecting to dashboard...')
+              router.push('/dashboard')
+            }
+          } catch (error) {
+            addDebugInfo(`⚠️ Error checking onboarding type: ${error}`)
+            // Fallback to organization onboarding
+            router.push('/onboarding')
+          }
           return
         }
         

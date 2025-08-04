@@ -31,7 +31,7 @@ export async function middleware(req: NextRequest) {
   ]
 
   // Define onboarding routes
-  const onboardingRoutes = ['/onboarding']
+  const onboardingRoutes = ['/onboarding', '/onboarding/user']
 
   // Define auth callback routes (always allow)
   const authCallbackRoutes = ['/auth/callback']
